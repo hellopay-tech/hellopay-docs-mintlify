@@ -14,11 +14,10 @@
         "tab": "Guides",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Para Empezar",
             "pages": [
               "index",
-              "quickstart",
-              "development"
+              "authenication"
             ]
           },
           {
