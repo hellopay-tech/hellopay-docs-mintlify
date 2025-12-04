@@ -1,0 +1,38 @@
+---
+title: 'How to create your first payin'
+description: ''
+icon: 'code'
+---
+
+In order to create a payin, you need to send a POST request to the `/payins` endpoint. See an example:
+
+```bash
+curl --location 'https://api.stg.hellopay.com.co/payins' \
+--header 'Content-Type: application/json' \
+--header 'x-api-key: c79433391b52f3e1b2209eb300803291f0ed0a9e88664778' \
+--data-raw '{
+    "amountInCents": 10000,
+    "currency": "COP",
+    "rail": "BRE_B",
+    "reference": "001122",
+    "inlineCustomer": {
+        "name": "John Doe",
+        "idType": "CO_CC",
+        "idNumber": "00112233",
+        "email": "john.doe@doe.com",
+        "phone": "+573137772121"
+    },
+    "breb": {
+        "keyType": "SINGLE_USE"
+    },
+    "callbackUrl":"https://www.google.com"
+}'
+```
+
+A special note on some fields of the payload:
+- `rail`: corresponds to the payment rail you want to use, `BRE_B` for BREB.
+- `inlineCustomer`: corresponds to the information of the customer making the payment. 
+- `breb`: This is required if you want to use BREB as the payment rail.
+- `callbackUrl`: This is the URL the checkout page will redirect to after the payment is completed.
+
+

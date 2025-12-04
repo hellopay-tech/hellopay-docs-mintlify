@@ -1,0 +1,1078 @@
+openapi: 3.0.0
+paths:
+  /ledger/entries:
+    get:
+      description: >-
+        Retrieves a paginated list of ledger entries.
+      operationId: LedgerController_getLedgerEntries
+      parameters:
+        - name: page
+          required: false
+          in: query
+          description: Page number for pagination
+          schema:
+            minimum: 1
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          description: Number of items per page
+          schema:
+            minimum: 1
+            default: 10
+            example: 10
+            type: number
+        - name: total
+          required: false
+          in: query
+          description: Total number of items
+          schema:
+            minimum: 1
+            default: 100
+            example: 100
+            type: number
+        - name: totalPages
+          required: false
+          in: query
+          description: Total number of pages
+          schema:
+            minimum: 1
+            default: 10
+            example: 10
+            type: number
+        - name: hasNext
+          required: false
+          in: query
+          description: Whether there is a next page
+          schema:
+            default: true
+            example: true
+            type: boolean
+        - name: hasPrev
+          required: false
+          in: query
+          description: Whether there is a previous page
+          schema:
+            default: false
+            example: false
+            type: boolean
+      responses:
+        '200':
+          description: List of ledger entries with pagination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerEntriesResponseDto'
+        '401':
+          description: Unauthorized
+      summary: Get all ledger entries
+      tags:
+        - Ledger
+  /ledger/balance:
+    get:
+      description: >-
+        Retrieves the balance information.
+      operationId: LedgerController_getBalance
+      parameters: []
+      responses:
+        '200':
+          description: Balance information
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BalanceResponseDto'
+        '401':
+          description: Unauthorized
+      summary: Get the balance information
+      tags:
+        - Ledger
+  /payouts:
+    post:
+      description: Creates a new payment in transaction.
+      operationId: PayoutsController_createPayout
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePayoutDto'
+      responses:
+        '201':
+          description: Payout successfully created
+        '400':
+          description: Invalid input data
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+      summary: Create a new payout
+      tags:
+        - Payouts
+    get:
+      description: >-
+        Retrieves a paginated list of payouts for the authenticated
+        organization. Requires JWT authentication.
+      operationId: PayoutsController_getPayouts
+      parameters:
+        - name: page
+          required: false
+          in: query
+          description: Page number for pagination
+          schema:
+            minimum: 1
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          description: Number of items per page
+          schema:
+            minimum: 1
+            default: 10
+            example: 10
+            type: number
+        - name: total
+          required: false
+          in: query
+          description: Total number of items
+          schema:
+            minimum: 1
+            default: 100
+            example: 100
+            type: number
+        - name: totalPages
+          required: false
+          in: query
+          description: Total number of pages
+          schema:
+            minimum: 1
+            default: 10
+            example: 10
+            type: number
+        - name: hasNext
+          required: false
+          in: query
+          description: Whether there is a next page
+          schema:
+            default: true
+            example: true
+            type: boolean
+        - name: hasPrev
+          required: false
+          in: query
+          description: Whether there is a previous page
+          schema:
+            default: false
+            example: false
+            type: boolean
+      responses:
+        '200':
+          description: List of payouts with pagination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutsResponseDto'
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+      summary: Get all payouts
+      tags:
+        - Payouts
+  /payouts/{id}:
+    get:
+      description: Retrieves a single payout by ID. Requires JWT authentication.
+      operationId: PayoutsController_getPayout
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: The unique identifier of the payout
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payout found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutResponse'
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+        '404':
+          description: Payout not found
+      summary: Get a specific payout
+      tags:
+        - Payouts
+  /breb/keys/{keyString}:
+    get:
+      description: Get BreB key details by key string
+      operationId: BrebController_getKeyDetails
+      parameters:
+        - name: keyString
+          required: true
+          in: path
+          description: The key string of the BreB key
+          schema:
+            type: string
+      responses:
+        '200':
+          description: BreB key details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyDetailsDto'
+        '404':
+          description: BreB key not found
+      summary: Get BreB key details
+      tags:
+        - Breb
+  /payins:
+    post:
+      description: Creates a new payin request.
+      operationId: PayinsController_createPayin
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePayinDto'
+      responses:
+        '201':
+          description: Payin successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayinResponse'
+        '400':
+          description: Invalid input data
+        '401':
+          description: Unauthorized
+      summary: Create a new payin
+      tags:
+        - Payins
+    get:
+      description: Retrieves a paginated list of payins for the authenticated organization.
+      operationId: PayinsController_getPayins
+      parameters:
+        - name: page
+          required: false
+          in: query
+          description: Page number for pagination
+          schema:
+            minimum: 1
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          description: Number of items per page
+          schema:
+            minimum: 1
+            default: 10
+            example: 10
+            type: number
+        - name: total
+          required: false
+          in: query
+          description: Total number of items
+          schema:
+            minimum: 1
+            default: 100
+            example: 100
+            type: number
+        - name: totalPages
+          required: false
+          in: query
+          description: Total number of pages
+          schema:
+            minimum: 1
+            default: 10
+            example: 10
+            type: number
+        - name: hasNext
+          required: false
+          in: query
+          description: Whether there is a next page
+          schema:
+            default: true
+            example: true
+            type: boolean
+        - name: hasPrev
+          required: false
+          in: query
+          description: Whether there is a previous page
+          schema:
+            default: false
+            example: false
+            type: boolean
+      responses:
+        '200':
+          description: List of payins with pagination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayinsResponseDto'
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+      summary: Get all payins
+      tags:
+        - Payins
+  /payins/{id}:
+    get:
+      description: Retrieves a single payin by ID.
+      operationId: PayinsController_getPayin
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: The unique identifier of the payin
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payin found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayinResponse'
+        '401':
+          description: Unauthorized - Invalid or missing JWT token
+        '404':
+          description: Payin not found
+      summary: Get a specific payin
+      tags:
+        - Payins
+info:
+  title: HelloPay API
+  description: HelloPay Backend API Documentation
+  version: '1.0'
+  contact: {}
+tags: []
+servers: []
+components:
+  # securitySchemes:
+  #   JWT-auth:
+  #     scheme: bearer
+  #     bearerFormat: JWT
+  #     type: http
+  #     name: JWT
+  #     description: Enter JWT token
+  #     in: header
+  schemas:
+    ApiKeyResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The API key ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        organizationId:
+          type: string
+          description: The organization ID this API key belongs to
+          example: 123e4567-e89b-12d3-a456-426614174000
+        createdAt:
+          format: date-time
+          type: string
+          description: When the API key was created
+          example: '2025-01-15T10:30:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          description: When the API key was last updated
+          example: '2025-01-15T10:30:00.000Z'
+      required:
+        - id
+        - organizationId
+        - createdAt
+        - updatedAt
+    CreateApiKeyResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The API key ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        cleartextKey:
+          type: string
+          description: The API key (cleartext - only shown once)
+          example: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0
+        organizationId:
+          type: string
+          description: The organization ID this API key belongs to
+          example: 123e4567-e89b-12d3-a456-426614174000
+        createdAt:
+          format: date-time
+          type: string
+          description: When the API key was created
+          example: '2025-01-15T10:30:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          description: When the API key was last updated
+          example: '2025-01-15T10:30:00.000Z'
+      required:
+        - id
+        - cleartextKey
+        - organizationId
+        - createdAt
+        - updatedAt
+    LedgerEntryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The ID of the ledger entry
+        createdAt:
+          format: date-time
+          type: string
+          description: The creation date of the ledger entry
+        updatedAt:
+          format: date-time
+          type: string
+          description: The update date of the ledger entry
+        amount:
+          type: number
+          description: The amount of the ledger entry
+        currency:
+          type: string
+          description: The currency of the ledger entry
+        reason:
+          type: string
+          description: The reason of the ledger entry
+        preAvailableBalance:
+          type: number
+          description: The pre available balance of the ledger entry
+        postAvailableBalance:
+          type: number
+          description: The post available balance of the ledger entry
+        prePostedBalance:
+          type: number
+          description: The pre posted balance of the ledger entry
+        postPostedBalance:
+          type: number
+          description: The post posted balance of the ledger entry
+        metadata:
+          type: object
+          description: The metadata of the ledger entry
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - amount
+        - currency
+        - reason
+        - preAvailableBalance
+        - postAvailableBalance
+        - prePostedBalance
+        - postPostedBalance
+        - metadata
+    PaginationDto:
+      type: object
+      properties:
+        page:
+          type: number
+          description: Page number for pagination
+          example: 1
+          minimum: 1
+          default: 1
+        limit:
+          type: number
+          description: Number of items per page
+          example: 10
+          minimum: 1
+          default: 10
+        total:
+          type: number
+          description: Total number of items
+          example: 100
+          minimum: 1
+          default: 100
+        totalPages:
+          type: number
+          description: Total number of pages
+          example: 10
+          minimum: 1
+          default: 10
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+          default: true
+        hasPrev:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+          default: false
+    LedgerEntriesResponseDto:
+      type: object
+      properties:
+        data:
+          description: The data of the ledger entries
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerEntryResponse'
+        pagination:
+          description: The pagination metadata
+          allOf:
+            - $ref: '#/components/schemas/PaginationDto'
+      required:
+        - data
+        - pagination
+    BalanceResponseDto:
+      type: object
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+          description: The creation date of the balance
+          example: '2021-01-01T00:00:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          description: The update date of the balance
+          example: '2021-01-01T00:00:00.000Z'
+        organizationId:
+          type: string
+          description: The organization ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        id:
+          type: string
+          description: The ID of the balance
+          example: 123e4567-e89b-12d3-a456-426614174000
+        availableBalance:
+          type: number
+          description: The available balance
+          example: 1000
+        postedBalance:
+          type: number
+          description: The posted balance
+          example: 1000
+        currency:
+          type: string
+          description: The currency
+          example: COP
+      required:
+        - createdAt
+        - updatedAt
+        - organizationId
+        - id
+        - availableBalance
+        - postedBalance
+        - currency
+    CustomerDataDto:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Customer full name
+          example: John Doe
+        idType:
+          type: string
+          description: Type of identification document
+          enum:
+            - CO_CC
+            - MXN_RFC
+            - PASSPORT
+          example: CO_CC
+        idNumber:
+          type: string
+          description: Identification document number
+          example: '1234567890'
+        phone:
+          type: string
+          description: Customer phone number
+          example: '+573001234567'
+        email:
+          type: string
+          description: Customer email address
+          example: john.doe@example.com
+      required:
+        - name
+        - idType
+        - idNumber
+        - phone
+        - email
+    BrebDto:
+      type: object
+      properties:
+        keyString:
+          type: string
+          description: BREB payment key string
+          example: breb-key-string
+      required:
+        - keyString
+    TransfiyaAccountDto:
+      type: object
+      properties:
+        bank:
+          type: string
+          description: Bank code (it should be supported by Transfiya)
+          example: CO_BANCOLOMBIA
+        bankAccountNumber:
+          type: string
+          description: Bank account number
+          example: '1234567890'
+        customerDocumentNumber:
+          type: string
+          description: Customer document number
+          example: '1234567890'
+      required:
+        - bank
+        - bankAccountNumber
+        - customerDocumentNumber
+    TransfiyaDto:
+      type: object
+      properties:
+        keyString:
+          type: string
+          description: Transfiya payment key string
+          example: transfiya-key-string
+        account:
+          description: Transfiya account details
+          example: transfiya-key-string
+          allOf:
+            - $ref: '#/components/schemas/TransfiyaAccountDto'
+      required:
+        - keyString
+        - account
+    CreatePayoutDto:
+      type: object
+      properties:
+        amountInCents:
+          type: number
+          description: Payment amount in cents
+          example: 100000
+          minimum: 1
+        currency:
+          type: string
+          description: Payment currency
+          example: COP
+        rail:
+          type: string
+          description: Payment rail type
+          example: TRANSFIYA
+        reference:
+          type: string
+          description: Unique reference for the payout
+          example: OUT-2024-001
+        inlineCustomer:
+          description: Customer data
+          allOf:
+            - $ref: '#/components/schemas/CustomerDataDto'
+        breb:
+          description: Bre-B key details (required when type is BRE_B)
+          allOf:
+            - $ref: '#/components/schemas/BrebDto'
+        transfiya:
+          description: Transfiya key details (required when type is TRANSFIYA)
+          allOf:
+            - $ref: '#/components/schemas/TransfiyaDto'
+      required:
+        - amountInCents
+        - currency
+        - rail
+        - reference
+    PayoutResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Payout ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        amount:
+          type: number
+          description: Payout amount
+          example: 100000
+        currency:
+          type: string
+          description: Payout currency
+          example: COP
+        status:
+          type: string
+          description: Payout status
+          example: PENDING
+        rail:
+          type: string
+          description: Payout rail
+          example: BRE_B
+        reference:
+          type: object
+          description: Payout reference
+          example: OUT-2024-001
+        inlineCustomer:
+          description: Payout inline customer
+          allOf:
+            - $ref: '#/components/schemas/CustomerDataDto'
+        errorCode:
+          type: object
+          description: Payout error code
+          example: '1234567890'
+        createdAt:
+          format: date-time
+          type: string
+          description: Payout created at
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          description: Payout updated at
+          example: '2024-01-01T00:00:00.000Z'
+        resultAt:
+          type: object
+          description: Payout result at
+          example: '2024-01-01T00:00:00.000Z'
+        organizationId:
+          type: string
+          description: Payout organization ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        targetData:
+          type: object
+          description: Payout target data
+          example:
+            bankAccount:
+              accountNumber: '1234567890'
+              accountType: CHECKING
+      required:
+        - id
+        - amount
+        - currency
+        - status
+        - rail
+        - createdAt
+        - updatedAt
+        - organizationId
+        - targetData
+    PaginationMetadata:
+      type: object
+      properties:
+        page:
+          type: number
+          description: Current page number
+          example: 1
+        limit:
+          type: number
+          description: Number of items per page
+          example: 10
+        total:
+          type: number
+          description: Total number of items
+          example: 100
+        totalPages:
+          type: number
+          description: Total number of pages
+          example: 10
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPrev:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+        - hasNext
+        - hasPrev
+    PayoutsResponseDto:
+      type: object
+      properties:
+        data:
+          description: List of payouts
+          type: array
+          items:
+            $ref: '#/components/schemas/PayoutResponse'
+        pagination:
+          description: Pagination metadata
+          allOf:
+            - $ref: '#/components/schemas/PaginationMetadata'
+      required:
+        - data
+        - pagination
+    BrebKeyDetailsDto:
+      type: object
+      properties:
+        bankId:
+          type: string
+          description: The bank ID
+          example: '1234567890'
+        status:
+          type: string
+          description: The status
+          example: ACTIVE
+        firstName:
+          type: string
+          description: The first name
+          example: John
+        lastName:
+          type: string
+          description: The last name
+          example: Doe
+        keyType:
+          type: string
+          description: The key type
+          example: KEY_TYPE
+        keyValue:
+          type: string
+          description: The key value
+          example: '1234567890'
+        idType:
+          type: string
+          description: The ID type
+          example: CC
+        idValue:
+          type: string
+          description: The ID value
+          example: '1234567890'
+        targetSpbviCode:
+          type: string
+          description: The target SPBVI code
+          example: SPBVI_CODE
+        bankAccountType:
+          type: string
+          description: The bank account type
+          example: SVGS
+        bankAccountNumber:
+          type: string
+          description: The bank account number
+          example: '1234567890'
+      required:
+        - bankId
+        - status
+        - firstName
+        - lastName
+        - keyType
+        - keyValue
+        - idType
+        - idValue
+        - targetSpbviCode
+        - bankAccountType
+        - bankAccountNumber
+    KeyDetailsDto:
+      type: object
+      properties:
+        details:
+          description: The details of the BreB key
+          allOf:
+            - $ref: '#/components/schemas/BrebKeyDetailsDto'
+      required:
+        - details
+    WebhookSetupResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Webhook ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        url:
+          type: string
+          description: Webhook URL
+          example: https://example.com/webhook
+        authHeaderKey:
+          type: string
+          description: Webhook authentication header key
+          example: Authorization
+        authHeaderValue:
+          type: string
+          description: Webhook authentication header value
+          example: '1234567890'
+      required:
+        - id
+        - url
+        - authHeaderKey
+        - authHeaderValue
+    CreateWebhookSetupDto:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Webhook URL
+          example: https://example.com/webhook
+        authHeaderKey:
+          type: string
+          description: Webhook authentication header key
+          example: Authorization
+        authHeaderValue:
+          type: string
+          description: Webhook authentication header value
+          example: '1234567890'
+      required:
+        - url
+        - authHeaderKey
+        - authHeaderValue
+    CreatePayinDto:
+      type: object
+      properties:
+        amountInCents:
+          type: number
+          description: Payment amount in cents
+          example: 100000
+          minimum: 1
+        currency:
+          type: string
+          description: Payment currency
+          example: COP
+        rail:
+          type: string
+          description: Payment rail type
+          example: BRE_B
+        reference:
+          type: string
+          description: Unique reference for the payment
+          example: INV-2024-001
+        inlineCustomer:
+          description: Customer data
+          allOf:
+            - $ref: '#/components/schemas/CustomerDataDto'
+        breb:
+          description: BREB payment details (required when type is BRE_B)
+          allOf:
+            - $ref: '#/components/schemas/BrebDto'
+        callbackUrl:
+          type: string
+          description: Callback URL
+          example: https://example.com/callback
+      required:
+        - amountInCents
+        - currency
+        - rail
+        - reference
+    PayinResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Payin ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        amount:
+          type: number
+          description: Payin amount
+          example: 100000
+        currency:
+          type: string
+          description: Payin currency
+          example: COP
+        status:
+          type: string
+          description: Payin status
+          example: PENDING
+        rail:
+          type: string
+          description: Payin rail
+          example: BRE_B
+        reference:
+          type: string
+          description: Payin reference
+          example: INV-2024-001
+        inlineCustomer:
+          type: object
+          description: Payin inline customer
+          example: John Doe
+        errorCode:
+          type: object
+          description: Payin error code
+          example: '1234567890'
+        createdAt:
+          format: date-time
+          type: string
+          description: Payin created at
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          description: Payin updated at
+          example: '2024-01-01T00:00:00.000Z'
+        resultAt:
+          type: object
+          description: Payin result at
+          example: '2024-01-01T00:00:00.000Z'
+        chargebackAt:
+          type: object
+          description: Payin chargeback at
+          example: '2024-01-01T00:00:00.000Z'
+        organizationId:
+          type: string
+          description: Payin organization ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        sourceData:
+          description: Payin pse response
+          allOf:
+            - $ref: '#/components/schemas/BrebDto'
+        callbackUrl:
+          type: object
+          description: Payin callback URL
+          example: https://example.com/callback
+      required:
+        - id
+        - amount
+        - currency
+        - status
+        - rail
+        - reference
+        - createdAt
+        - updatedAt
+        - organizationId
+    PayinsResponseDto:
+      type: object
+      properties:
+        data:
+          description: List of payins
+          type: array
+          items:
+            $ref: '#/components/schemas/PayinResponse'
+        pagination:
+          description: Pagination metadata
+          allOf:
+            - $ref: '#/components/schemas/PaginationMetadata'
+      required:
+        - data
+        - pagination
+    EmbedUrlResponseDto:
+      type: object
+      properties:
+        embedUrl:
+          type: string
+          description: Generated Metabase embed URL
+          example: >-
+            http://localhost:3000/embed/question/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      required:
+        - embedUrl
+    BalanceHistoryItemDto:
+      type: object
+      properties:
+        datetime:
+          type: string
+          description: The date of the balance history item
+        availableBalance:
+          type: number
+          description: The amount of the balance history item
+        postedBalance:
+          type: number
+          description: The posted balance of the balance history item
+      required:
+        - datetime
+        - availableBalance
+        - postedBalance
+    FeeRegistryHistoryItemDto:
+      type: object
+      properties:
+        month:
+          type: string
+          description: The month of the fee registry history item
+        segment:
+          type: string
+          description: The segment of the fee segment history item
+        confirmedCount:
+          type: number
+          description: The confirmed count of the fee segment history item
+      required:
+        - month
+        - segment
+        - confirmedCount

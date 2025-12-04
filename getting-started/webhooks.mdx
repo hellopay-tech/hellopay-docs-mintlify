@@ -1,0 +1,69 @@
+---
+title: "Webhooks"
+---
+
+Webhooks are a way to receive notifications from HelloPay when certain events occur.
+
+Our platform will send a POST request to the URL you provide when certain events occur and retry sending the request every hour until it is successful or the 10th retry is reached.
+
+Any 2xx response code will be considered successful and the request will be considered delivered.
+
+## How to setup webhooks
+
+1. Enter the HelloPay portal. ([Staging ](https://portal.stg.hellopay.com.co)| [Production](https://portal.hellopay.com.co))
+2. Go to "Configuraciones -\> Webhooks. ([Staging](https://portal.stg.hellopay.com.co/settings/webhooks) | [Production](https://portal.hellopay.com.co/settings/webhooks))
+3. Fill in the configuration details.
+4. Save your webhook configuration.
+
+**Note:** As you will notice, we require that you provide an authentication header. Currently this is in the only method we support.
+
+## Events
+
+The events' payload are in JSON format. Find below the spec:
+
+### Payins
+
+```javascript
+{
+  event: 'payin.processing' | 'payin.confirmed' | 'payin.canceled' | 'payin.declined';
+  resource: 'payout';
+  data: {
+    id: string;
+    reference: string | null;
+    amount: number;
+    currency: 'COP';
+    status: 'PROCESSING' | 'CONFIRMED' | 'CANCELED' | 'DECLINED';
+    rail: 'BRE_B';
+    targetData: object;
+    errorCode: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    resultAt: Date | null;
+    organizationId: string;
+  };
+}
+```
+
+### Payouts
+
+```javascript
+{
+  event: 'payout.processing' | 'payout.confirmed' | 'payout.canceled' | 'payout.declined';
+  resource: 'payout';
+  data: {
+    id: string;
+    reference: string | null;
+    amount: number;
+    currency: 'COP';
+    status: 'PROCESSING' | 'CONFIRMED' | 'CANCELED' | 'DECLINED';
+    rail: 'BRE_B';
+    targetData: object;
+    errorCode: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    resultAt: Date | null;
+    organizationId: string;
+  };
+}
+```
+

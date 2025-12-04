@@ -1,0 +1,34 @@
+---
+title: 'How to create your first payout'
+description: ''
+icon: 'code'
+---
+
+In order to create a payout, you need to send a POST request to the `/payouts` endpoint. See an example:
+
+```bash
+curl --location 'https://api.stg.hellopay.com.co/payouts' \
+--data-raw '{
+    "amountInCents": 10000,
+    "currency": "COP",
+    "rail": "BRE_B",
+    "reference": "001122",
+    "inlineCustomer": {
+        "name": "John Doe",
+        "idType": "CO_CC",
+        "idNumber": "00112233",
+        "email": "john.doe@doe.com",
+        "phone": ""
+    },
+    "breb": {
+        "keyString": "@alphamunKey01"
+    }
+}'
+```
+
+A special note on some fields of the payload:
+- `rail`: corresponds to the payout rail you want to use, `BRE_B` for BREB.
+- `inlineCustomer`: corresponds to the information of the customer making the payment. 
+- `breb`: This is required if you want to use BREB as the payment rail.
+
+
