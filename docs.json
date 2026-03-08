@@ -32,11 +32,12 @@
           {
             "group": "Getting Started",
             "icon": "play",
-            "pages": [
-              "index",
-              "getting-started/authentication",
-              "getting-started/webhooks"
-            ]
+              "pages": [
+                "index",
+                "getting-started/authentication",
+                "getting-started/sandbox",
+                "getting-started/webhooks"
+              ]
           },
           {
             "group": "Guides",

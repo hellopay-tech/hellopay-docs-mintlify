@@ -1,0 +1,79 @@
+---
+title: "Sandbox"
+icon: "terminal"
+---
+
+## Overview
+
+The sandbox environment is the place where you can validate your integration before going live.
+
+Base URL:
+
+```text
+https://api.stg.hellopay.com.co
+```
+
+This environment lets you test the main API endpoints for both payins and payouts using the same request structure as production.
+
+No real money moves in sandbox. HelloPay does not connect directly to real payment methods such as PSE or BRE-B in this environment. Instead, it simulates the expected production behavior so you can validate your integration end-to-end.
+
+## Test Document Numbers
+
+For both payins and payouts, the final transaction outcome is determined by the value sent in `inlineCustomer.idNumber`.
+
+| What you want to test | Document number |
+|-----------------------|-----------------|
+| Successful payin/payout | `1000000001` |
+| Declined payin/payout | `1000000003` |
+| Canceled payin/payout | `1000000005` |
+| Default (also confirmed) | Any other value |
+
+## Timing
+
+After creating a payin or payout, the transaction status changes in two steps:
+
+1. Almost immediately, HelloPay sends a webhook with status `PROCESSING`.
+2. Shortly after (~5 seconds), the final status changes according to the value sent in `inlineCustomer.idNumber`.
+
+This behavior applies to both payins and payouts.
+
+## Webhook Events Sequence
+
+The same sequence applies to both payins and payouts:
+
+1. `payin.processing` / `payout.processing` is sent almost immediately after the transaction is created.
+2. `payin.confirmed`, `payin.declined`, or `payin.canceled` is sent next for payins.
+3. `payout.confirmed`, `payout.declined`, or `payout.canceled` is sent next for payouts.
+
+## Sandbox Flow Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as Client Integration
+    participant API as HelloPay Sandbox API
+    participant WH as Client Webhook Endpoint
+
+    Note over Client,API: Base URL: https://api.stg.hellopay.com.co
+    Note over Client,API: Applies to both POST /payins and POST /payouts
+
+    Client->>API: Create transaction with inlineCustomer.idNumber
+    Note right of API: Sandbox simulates production behavior\nNo real money moves
+
+    API-->>WH: Webhook: processing
+    Note over WH: payin.processing or payout.processing
+
+    alt idNumber = 1000000001
+        API-->>WH: Webhook: confirmed
+        Note over WH: Successful payin/payout
+    else idNumber = 1000000003
+        API-->>WH: Webhook: declined
+        Note over WH: Declined payin/payout
+    else idNumber = 1000000005
+        API-->>WH: Webhook: canceled
+        Note over WH: Canceled payin/payout
+    else any other value
+        API-->>WH: Webhook: confirmed
+        Note over WH: Default behavior
+    end
+```
