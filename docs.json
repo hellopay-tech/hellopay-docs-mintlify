@@ -4,10 +4,12 @@
   "name": "HelloPay API Documentation",
   "appearance": {
     "default": "light",
-    "strict": true
+    "strict": false
   },
   "colors": {
-    "primary": "#3B82F6"
+    "primary": "#0F63FF",
+    "light": "#0F63FF",
+    "dark": "#0F63FF"
   },
   "favicon": "/favicon.svg",
   "api": {
@@ -96,7 +98,7 @@
   },
   "logo": {
     "light": "/logo/logo.png",
-    "dark": "/logo/dark.svg"
+    "dark": "/logo/logo-dark.png"
   },
   "navbar": {
     "links": [
