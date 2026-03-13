@@ -16,11 +16,15 @@ Before implementing this rail:
 
 1. Create the payin with `rail: "PSE"` and include the selected bank in `pse.bank`.
 2. HelloPay starts the payin in `PROCESSING`.
-3. The payer completes the authorization through the PSE bank flow.
-4. HelloPay sends webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
-5. After the payer finishes the flow, HelloPay redirects them to your `callbackUrl`.
+3. Right after creation, `sourceData.pseUrl` is `null`.
+4. Poll the payin until HelloPay updates `sourceData.pseUrl` with the redirect URL for the payer.
+5. The payer completes the authorization through the PSE bank flow.
+6. HelloPay sends webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
+7. After the payer finishes the flow, HelloPay redirects them to your `callbackUrl`.
 
 ## Request example
+
+This flow is asynchronous. After creating the payin, `sourceData.pseUrl` is initially `null`, so you must poll the transaction until the redirect URL is available.
 
 ```bash
 curl --location 'https://api.stg.hellopay.com.co/payins' \
@@ -151,8 +155,8 @@ Use one of the following values in `pse.personType`:
   "resultAt": null,
   "organizationId": "123e4567-e89b-12d3-a456-426614174000",
   "sourceData": {
-    "bank": "CO_BANCOLOMBIA",
-    "personType": "NATURAL"
+    "pseUrl": null,
+    "checkoutUrl": "https://pay.stg.hellopay.com.co/transaction?payinId=0f60d574-9704-45a3-926f-189af08c79e4&token=UElVMElHVkk5WDdptCTol2ZISRgy_VHeXy_sc2SH3A"
   },
   "callbackUrl": "https://portal.hellopay.com.co"
 }
@@ -161,5 +165,6 @@ Use one of the following values in `pse.personType`:
 ## What the response means
 
 - `status: "PROCESSING"` means the payin was created and is waiting for the payer to complete the PSE flow.
-- `sourceData` echoes the PSE-specific data associated with the payin, including the selected bank and person type.
+- `sourceData.pseUrl` is `null` in the creation response and is filled later when you poll the payin again.
+- `sourceData` also includes the PSE-specific data associated with the payin, such as the selected bank and person type.
 - The final outcome is delivered asynchronously through webhooks, so do not treat the creation response as the final payment result.

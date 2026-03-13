@@ -1,32 +1,90 @@
 ---
 title: 'How to create your first payout'
-description: ''
+description: 'Understand the BREB payout flow before sending funds.'
 icon: 'file-code'
 ---
 
-In order to create a payout, you need to send a POST request to the `/payouts` endpoint. See an example:
+Use the `/payouts` endpoint to send funds to a receiver. The current payout flow is oriented to `BRE_B`.
+
+## General flow
+
+1. Resolve the receiver details for the BREB key with `GET /breb/keys/{keyString}`.
+2. Send a `POST` request to `/payouts` with `rail: "BRE_B"` and the same `breb.keyString`.
+3. HelloPay creates the payout and processes it asynchronously.
+4. Track the final state through webhook events such as `payout.confirmed`, `payout.canceled`, or `payout.declined`.
+
+## Validate the BREB key first
+
+Use the BREB key lookup endpoint before creating the payout. This lets you confirm that the destination key exists and belongs to the intended receiver.
+
+```bash
+curl --location 'https://api.stg.hellopay.com.co/breb/keys/@alphamunKey01' \
+--header 'x-api-key: ••••••'
+```
+
+## Request example
 
 ```bash
 curl --location 'https://api.stg.hellopay.com.co/payouts' \
+--header 'Content-Type: application/json' \
+--header 'x-api-key: ••••••' \
 --data-raw '{
-    "amountInCents": 10000,
-    "currency": "COP",
-    "rail": "BRE_B",
-    "reference": "1dwDmHerYL5NBQZ",
-    "inlineCustomer": {
-        "name": "John Doe",
-        "idType": "CO_CC",
-        "idNumber": "1000000001",
-        "email": "john.doe@doe.com",
-        "phone": ""
-    },
-    "breb": {
-        "keyString": "@alphamunKey01"
-    }
+  "amountInCents": 10000,
+  "currency": "COP",
+  "rail": "BRE_B",
+  "reference": "1dwDmHerYL5NBQZ",
+  "inlineCustomer": {
+    "name": "John Doe",
+    "idType": "CO_CC",
+    "idNumber": "1000000001",
+    "email": "john.doe@doe.com",
+    "phone": "+573137772121"
+  },
+  "breb": {
+    "keyString": "@alphamunKey01"
+  }
 }'
 ```
 
-A special note on some fields of the payload:
-- `rail`: corresponds to the payout rail you want to use, `BRE_B` for BREB.
-- `inlineCustomer`: corresponds to the information of the customer making the payment.
-- `breb`: This is required if you want to use BREB as the payment rail.
+## Request fields
+
+- `amountInCents`: amount to send, expressed in cents.
+- `currency`: currently `COP`.
+- `rail`: must be `BRE_B`.
+- `reference`: your internal identifier for this payout.
+- `inlineCustomer`: information for the customer associated with the payout.
+- `breb.keyString`: BREB key that identifies the destination account.
+
+## Response example
+
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "amount": 10000,
+  "currency": "COP",
+  "status": "PROCESSING",
+  "rail": "BRE_B",
+  "reference": "1dwDmHerYL5NBQZ",
+  "inlineCustomer": {
+    "name": "John Doe",
+    "idType": "CO_CC",
+    "idNumber": "1000000001",
+    "email": "john.doe@doe.com",
+    "phone": "+573137772121"
+  },
+  "errorCode": null,
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "resultAt": null,
+  "organizationId": "123e4567-e89b-12d3-a456-426614174000",
+  "sourceData": {
+    "keyString": "@alphamunKey01"
+  }
+}
+```
+
+## What the response means
+
+- `status: "PROCESSING"` means the payout was created successfully and is still in progress.
+- `sourceData.keyString` echoes the destination BREB key used for the payout.
+- The creation response is not the final outcome. Use webhooks to confirm whether the payout was confirmed, canceled, or declined.

@@ -10,9 +10,19 @@ Use the `/payins` endpoint to create a payment request that your customer will c
 
 1. Send a `POST` request to `/payins` with the amount, customer data, selected `rail`, and method-specific details.
 2. HelloPay creates the payin and returns its initial state.
-3. The customer completes the payment using the selected payment method.
-4. HelloPay updates the payin status asynchronously and sends webhook events.
-5. After the flow ends, the user is redirected to the `callbackUrl` you provided.
+3. For async rails, poll the payin until the source data needed to continue the flow is available.
+4. The customer completes the payment using the selected payment method.
+5. HelloPay updates the payin status asynchronously and sends webhook events.
+6. After the flow ends, the user is redirected to the `callbackUrl` you provided.
+
+## Polling behavior
+
+For async payin rails such as `PSE` and `BRE_B`, the creation response does not include all source data immediately.
+
+- In `PSE` payins, `sourceData.pseUrl` is returned as `null` right after creation.
+- In `BRE_B` payins, `sourceData.keyString` is returned as `null` right after creation.
+- Poll the payin after creation to retrieve the updated `sourceData` values once HelloPay finishes populating them.
+- The method-specific guides include request and response examples for each async flow.
 
 ## Common fields
 

@@ -14,21 +14,15 @@ Before implementing this rail:
 
 ## Recommended BREB flow
 
-1. Resolve the receiver details for the BREB key with `GET /breb/keys/{keyString}`.
-2. Create the payin with `rail: "BRE_B"` and the same `breb.keyString`.
-3. HelloPay creates the payin in `PROCESSING`.
-4. Track the final state through webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
-
-## Validate the BREB key first
-
-Use the dedicated key lookup endpoint before creating the payin. This lets you confirm that the supplied key exists and belongs to the intended receiver.
-
-```bash
-curl --location 'https://api.stg.hellopay.com.co/breb/keys/@alphamunKey01' \
---header 'x-api-key: ••••••'
-```
+1. Create the payin with `rail: "BRE_B"` and the target `breb.keyString`.
+2. HelloPay creates the payin in `PROCESSING`.
+3. Right after creation, `sourceData.keyString` is `null`.
+4. Poll the payin or wait for webhook events until HelloPay updates the transaction with the BREB-specific data and final status.
+5. Track the final state through webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
 
 ## Request example
+
+This flow is asynchronous. After creating the payin, `sourceData.keyString` is initially `null` and is populated later when you poll the transaction again.
 
 ```bash
 curl --location 'https://api.stg.hellopay.com.co/payins' \
@@ -86,7 +80,8 @@ curl --location 'https://api.stg.hellopay.com.co/payins' \
   "resultAt": null,
   "organizationId": "123e4567-e89b-12d3-a456-426614174000",
   "sourceData": {
-    "keyString": "@alphamunKey01"
+    "keyString": null,
+    "checkoutUrl": "https://pay.stg.hellopay.com.co/transaction?payinId=0f60d574-9704-45a3-926f-189af08c79e4&token=UElVMElHVkk5WDdptCTol2ZISRgy_VHeXy_sc2SH3A"
   },
   "callbackUrl": "https://portal.hellopay.com.co"
 }
@@ -95,5 +90,5 @@ curl --location 'https://api.stg.hellopay.com.co/payins' \
 ## What the response means
 
 - `status: "PROCESSING"` means the payin was created successfully and is waiting for the BREB flow to complete.
-- `sourceData.keyString` echoes the BREB key associated with the payin.
+- `sourceData.keyString` is `null` in the creation response and is filled later when you poll the payin again.
 - The creation response is not the final outcome. Rely on webhooks to learn whether the payin was confirmed, canceled, or declined.

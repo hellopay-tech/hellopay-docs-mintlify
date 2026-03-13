@@ -37,6 +37,15 @@ After creating a payin or payout, the transaction status changes in two steps:
 
 This behavior applies to both payins and payouts.
 
+## Polling behavior
+
+For async payin rails such as `PSE` and `BRE_B`, the creation response does not include all source data immediately.
+
+- In `PSE` payins, `sourceData.pseUrl` is returned as `null` right after creation.
+- In `BRE_B` payins, `sourceData.keyString` is returned as `null` right after creation.
+- Poll the transaction after creation to retrieve the updated `sourceData` values once HelloPay finishes populating them.
+- In sandbox, this update follows the same simulated async behavior as production, so you should handle it with polling or webhooks.
+
 ## Webhook Events Sequence
 
 The same sequence applies to both payins and payouts:
@@ -59,6 +68,13 @@ sequenceDiagram
 
     Client->>API: Create transaction with inlineCustomer.idNumber
     Note right of API: Sandbox simulates production behavior\nNo real money moves
+
+    Note over Client,API: For PSE and BRE_B payins, initial sourceData may contain null values
+
+    loop Poll async payin until sourceData is updated
+        Client->>API: GET /payins/{id}
+        API-->>Client: Updated status and sourceData when available
+    end
 
     API-->>WH: Webhook: processing
     Note over WH: payin.processing or payout.processing
