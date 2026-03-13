@@ -1,38 +1,75 @@
 ---
 title: 'How to create your first payin'
-description: ''
+description: 'Understand the general payin flow before integrating a payment method.'
 icon: 'file-code'
 ---
 
-In order to create a payin, you need to send a POST request to the `/payins` endpoint. See an example:
+Use the `/payins` endpoint to create a payment request that your customer will complete using one of the supported payment methods.
 
-```bash
-curl --location 'https://api.stg.hellopay.com.co/payins' \
---header 'Content-Type: application/json' \
---header 'x-api-key: c79433391b52f3e1b2209eb300803291f0ed0a9e88664778' \
---data-raw '{
-    "amountInCents": 10000,
-    "currency": "COP",
-    "rail": "BRE_B",
-    "reference": "001122",
-    "inlineCustomer": {
-        "name": "John Doe",
-        "idType": "CO_CC",
-        "idNumber": "00112233",
-        "email": "john.doe@doe.com",
-        "phone": "+573137772121"
-    },
-    "breb": {
-        "keyType": "SINGLE_USE"
-    },
-    "callbackUrl":"https://www.google.com"
-}'
+## General flow
+
+1. Send a `POST` request to `/payins` with the amount, customer data, selected `rail`, and method-specific details.
+2. HelloPay creates the payin and returns its initial state.
+3. The customer completes the payment using the selected payment method.
+4. HelloPay updates the payin status asynchronously and sends webhook events.
+5. After the flow ends, the user is redirected to the `callbackUrl` you provided.
+
+## Common fields
+
+These fields are shared across all payin methods:
+
+- `amountInCents`: amount to collect in cents.
+- `currency`: currently `COP`.
+- `rail`: payment method to use, such as `PSE` or `BRE_B`.
+- `reference`: your internal payment reference.
+- `inlineCustomer`: customer information used during the payment flow.
+- `callbackUrl`: URL where the payer is redirected after completing the payment.
+
+## Supported document types
+
+Use one of the following values in `inlineCustomer.idType`:
+
+| Value | Description |
+| --- | --- |
+| `CO_CC` | Colombian citizenship ID. |
+| `PASSPORT` | Passport document. |
+| `CO_NIT` | Colombian tax identification number for businesses. |
+| `CO_CE` | Colombian foreigner ID card. |
+
+## Supported payment methods
+
+- [PSE payin guide](/guides/payin-pse): bank redirect flow using PSE.
+- [BREB payin guide](/guides/payin-breb): collection flow using a BREB key.
+
+## Sample payin response
+
+The creation response keeps the same base shape regardless of the selected payment method.
+
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "amount": 10000,
+  "currency": "COP",
+  "status": "PROCESSING",
+  "rail": "PSE",
+  "reference": "1dwDmHerYL5NBQZ",
+  "inlineCustomer": {
+    "name": "John Doe",
+    "idType": "CO_CC",
+    "idNumber": "1000000001",
+    "email": "john.doe@doe.com",
+    "phone": "+573131111111"
+  },
+  "errorCode": null,
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "resultAt": null,
+  "organizationId": "123e4567-e89b-12d3-a456-426614174000",
+  "sourceData": {
+    "paymentMethod": "PSE"
+  },
+  "callbackUrl": "https://portal.hellopay.com.co"
+}
 ```
 
-A special note on some fields of the payload:
-- `rail`: corresponds to the payment rail you want to use, `BRE_B` for BREB.
-- `inlineCustomer`: corresponds to the information of the customer making the payment. 
-- `breb`: This is required if you want to use BREB as the payment rail.
-- `callbackUrl`: This is the URL the checkout page will redirect to after the payment is completed.
-
-
+For method-specific payloads and examples, follow the dedicated guides for each payment method.

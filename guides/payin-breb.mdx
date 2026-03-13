@@ -1,0 +1,99 @@
+---
+title: 'Create a BREB payin'
+description: 'Use BREB to collect a payin with a BREB key.'
+icon: 'wallet'
+---
+
+Use `rail: "BRE_B"` when you want to collect a payin using a BREB key.
+
+Before implementing this rail:
+
+- Review [How to create your first payin](/guides/how-to-create-first-payin) for the shared request fields and lifecycle.
+- Configure [webhooks](/getting-started/webhooks) so your system receives the final payin status.
+- Treat `callbackUrl` as the payer return URL only. The definitive payment result is delivered asynchronously.
+
+## Recommended BREB flow
+
+1. Resolve the receiver details for the BREB key with `GET /breb/keys/{keyString}`.
+2. Create the payin with `rail: "BRE_B"` and the same `breb.keyString`.
+3. HelloPay creates the payin in `PROCESSING`.
+4. Track the final state through webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
+
+## Validate the BREB key first
+
+Use the dedicated key lookup endpoint before creating the payin. This lets you confirm that the supplied key exists and belongs to the intended receiver.
+
+```bash
+curl --location 'https://api.stg.hellopay.com.co/breb/keys/@alphamunKey01' \
+--header 'x-api-key: ••••••'
+```
+
+## Request example
+
+```bash
+curl --location 'https://api.stg.hellopay.com.co/payins' \
+--header 'Content-Type: application/json' \
+--header 'x-api-key: ••••••' \
+--data-raw '{
+  "amountInCents": 10000,
+  "currency": "COP",
+  "rail": "BRE_B",
+  "reference": "1dwDmHerYL5NBQZ",
+  "inlineCustomer": {
+    "name": "John Doe",
+    "idType": "CO_CC",
+    "idNumber": "1000000001",
+    "email": "john.doe@doe.com",
+    "phone": "+573137772121"
+  },
+  "breb": {
+    "keyString": "@alphamunKey01"
+  },
+  "callbackUrl": "https://portal.hellopay.com.co"
+}'
+```
+
+## Request fields
+
+- `amountInCents`: amount to collect, expressed in cents.
+- `currency`: currently `COP`.
+- `rail`: must be `BRE_B`.
+- `reference`: your internal identifier for this payin.
+- `inlineCustomer`: customer information used during the payment flow. Supported document types are listed in [How to create your first payin](/guides/how-to-create-first-payin).
+- `breb.keyString`: BREB key used to identify the receiving account.
+- `callbackUrl`: URL where the payer is redirected after the payment flow is completed.
+
+## Response example
+
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "amount": 10000,
+  "currency": "COP",
+  "status": "PROCESSING",
+  "rail": "BRE_B",
+  "reference": "1dwDmHerYL5NBQZ",
+  "inlineCustomer": {
+    "name": "John Doe",
+    "idType": "CO_CC",
+    "idNumber": "1000000001",
+    "email": "john.doe@doe.com",
+    "phone": "+573137772121"
+  },
+  "errorCode": null,
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "resultAt": null,
+  "organizationId": "123e4567-e89b-12d3-a456-426614174000",
+  "sourceData": {
+    "keyString": "@alphamunKey01"
+  },
+  "callbackUrl": "https://portal.hellopay.com.co"
+}
+```
+
+## What the response means
+
+- `status: "PROCESSING"` means the payin was created successfully and is waiting for the BREB flow to complete.
+- `sourceData.keyString` echoes the BREB key associated with the payin.
+- The creation response is not the final outcome. Rely on webhooks to learn whether the payin was confirmed, canceled, or declined.

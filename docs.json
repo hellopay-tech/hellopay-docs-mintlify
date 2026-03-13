@@ -45,7 +45,15 @@
             "group": "Guides",
             "icon": "notebook-text",
             "pages": [
-              "guides/how-to-create-first-payin",
+              {
+                "group": "Payins",
+                "icon": "wallet",
+                "pages": [
+                  "guides/how-to-create-first-payin",
+                  "guides/payin-pse",
+                  "guides/payin-breb"
+                ]
+              },
               "guides/how-to-create-first-payout"
             ]
           },

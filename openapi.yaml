@@ -576,8 +576,9 @@ components:
           description: Type of identification document
           enum:
             - CO_CC
-            - MXN_RFC
             - PASSPORT
+            - CO_NIT
+            - CO_CE
           example: CO_CC
         idNumber:
           type: string
@@ -606,6 +607,23 @@ components:
           example: breb-key-string
       required:
         - keyString
+    PseDto:
+      type: object
+      properties:
+        bank:
+          type: string
+          description: PSE bank code selected by the payer
+          example: CO_BANCOLOMBIA
+        personType:
+          type: string
+          description: Payer legal person type
+          enum:
+            - NATURAL
+            - BUSINESS
+          example: NATURAL
+      required:
+        - bank
+        - personType
     TransfiyaAccountDto:
       type: object
       properties:
@@ -923,6 +941,9 @@ components:
           type: string
           description: Payment rail type
           example: BRE_B
+          enum:
+            - BRE_B
+            - PSE
         reference:
           type: string
           description: Unique reference for the payment
@@ -935,6 +956,10 @@ components:
           description: BREB payment details (required when type is BRE_B)
           allOf:
             - $ref: '#/components/schemas/BrebDto'
+        pse:
+          description: PSE payment details (required when type is PSE)
+          allOf:
+            - $ref: '#/components/schemas/PseDto'
         callbackUrl:
           type: string
           description: Callback URL
@@ -967,6 +992,9 @@ components:
           type: string
           description: Payin rail
           example: BRE_B
+          enum:
+            - BRE_B
+            - PSE
         reference:
           type: string
           description: Payin reference
@@ -1002,11 +1030,13 @@ components:
           description: Payin organization ID
           example: 123e4567-e89b-12d3-a456-426614174000
         sourceData:
-          description: Payin pse response
-          allOf:
-            - $ref: '#/components/schemas/BrebDto'
-        callbackUrl:
           type: object
+          description: Payment-method-specific source data
+          example:
+            bank: CO_BANCOLOMBIA
+            personType: NATURAL
+        callbackUrl:
+          type: string
           description: Payin callback URL
           example: https://example.com/callback
       required:

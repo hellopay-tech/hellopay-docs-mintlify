@@ -1,43 +1,49 @@
-# Mintlify Starter Kit
+# HelloPay API Docs
 
-Use the starter kit to get your docs deployed and ready to customize.
+Mintlify documentation for the HelloPay API, including getting started guides, payment rail walkthroughs, and the API reference used by the docs site.
 
-Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
+## Requirements
 
-- Guide pages
-- Navigation
-- Customizations
-- API reference pages
-- Use of popular components
+- Node.js 18+
+- Mintlify CLI
 
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
+Install the CLI globally, or run it on demand with `npx` if you prefer not to install it:
 
-## Development
-
-Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
-
-```
+```bash
 npm i -g mint
 ```
 
-Run the following command at the root of your documentation, where your `docs.json` is located:
-
+```bash
+npx mint dev
 ```
+
+## Run locally
+
+From this directory, start the local docs preview:
+
+```bash
 mint dev
 ```
 
-View your local preview at `http://localhost:3000`.
+The site will be available at `http://localhost:3000`.
 
-## Publishing changes
+## Main files
 
-Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.
+- `docs.json`: Mintlify configuration, navigation, branding, and API settings
+- `index.mdx`: Documentation landing page
+- `getting-started/`: Authentication, sandbox, and webhook setup
+- `guides/`: Step-by-step integration guides for payins and payouts
+- `openapi.yaml`: OpenAPI spec used for the API reference
 
-## Need help?
+## Publishing
 
-### Troubleshooting
+Changes are deployed through Mintlify after they are merged into the default branch connected to the HelloPay docs project.
 
-- If your dev environment isn't running: Run `mint update` to ensure you have the most recent version of the CLI.
-- If a page loads as a 404: Make sure you are running in a folder with a valid `docs.json`.
+## Useful commands
 
-### Resources
-- [Mintlify documentation](https://mintlify.com/docs)
+```bash
+mint dev
+mint update
+```
+
+Use `mint update` if the local preview is outdated or fails to load correctly.

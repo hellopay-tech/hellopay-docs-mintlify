@@ -12,11 +12,11 @@ curl --location 'https://api.stg.hellopay.com.co/payouts' \
     "amountInCents": 10000,
     "currency": "COP",
     "rail": "BRE_B",
-    "reference": "001122",
+    "reference": "1dwDmHerYL5NBQZ",
     "inlineCustomer": {
         "name": "John Doe",
         "idType": "CO_CC",
-        "idNumber": "00112233",
+        "idNumber": "1000000001",
         "email": "john.doe@doe.com",
         "phone": ""
     },
@@ -28,7 +28,5 @@ curl --location 'https://api.stg.hellopay.com.co/payouts' \
 
 A special note on some fields of the payload:
 - `rail`: corresponds to the payout rail you want to use, `BRE_B` for BREB.
-- `inlineCustomer`: corresponds to the information of the customer making the payment. 
+- `inlineCustomer`: corresponds to the information of the customer making the payment.
 - `breb`: This is required if you want to use BREB as the payment rail.
-
-

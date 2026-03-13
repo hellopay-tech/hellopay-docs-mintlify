@@ -1,0 +1,165 @@
+---
+title: 'Create a PSE payin'
+description: 'Use PSE to collect a payin through a bank redirect flow.'
+icon: 'landmark'
+---
+
+Use `rail: "PSE"` when you want the payer to authenticate the payment with a supported Colombian bank through the PSE flow.
+
+Before implementing this rail:
+
+- Review [How to create your first payin](/guides/how-to-create-first-payin) for the shared request fields and lifecycle.
+- Configure [webhooks](/getting-started/webhooks) to receive the final payin outcome asynchronously.
+- Treat `callbackUrl` as the payer return URL, not as the source of truth for payment confirmation.
+
+## How the PSE flow works
+
+1. Create the payin with `rail: "PSE"` and include the selected bank in `pse.bank`.
+2. HelloPay starts the payin in `PROCESSING`.
+3. The payer completes the authorization through the PSE bank flow.
+4. HelloPay sends webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
+5. After the payer finishes the flow, HelloPay redirects them to your `callbackUrl`.
+
+## Request example
+
+```bash
+curl --location 'https://api.stg.hellopay.com.co/payins' \
+--header 'Content-Type: application/json' \
+--header 'x-api-key: ••••••' \
+--data-raw '{
+  "amountInCents": 10000,
+  "currency": "COP",
+  "rail": "PSE",
+  "reference": "1001122",
+  "inlineCustomer": {
+    "name": "John Doe",
+    "idType": "CO_CC",
+    "idNumber": "1000000001",
+    "email": "john.doe@doe.com",
+    "phone": "+573131111111"
+  },
+  "pse": {
+    "bank": "CO_BANCOLOMBIA",
+    "personType": "NATURAL"
+  },
+  "callbackUrl": "https://portal.hellopay.com.co"
+}'
+```
+
+## Request fields
+
+- `amountInCents`: amount to collect, expressed in cents.
+- `currency`: currently `COP`.
+- `rail`: must be `PSE`.
+- `reference`: your internal identifier for this payin.
+- `inlineCustomer`: customer information used during the payment flow. Supported document types are listed in [How to create your first payin](/guides/how-to-create-first-payin).
+- `pse.bank`: bank selected by the payer from the supported PSE bank list.
+- `pse.personType`: payer type. Supported values are `NATURAL` and `BUSINESS`.
+- `callbackUrl`: URL where the payer is redirected after leaving the PSE flow.
+
+## Supported banks
+
+Use one of the following values in `pse.bank`:
+
+| Code | Bank Name |
+| --- | --- |
+| `CO_ACCION_FIDUCIARIA` | Accion Fiduciaria |
+| `CO_ADDI_CF` | Addi CF |
+| `CO_ALIANZA_FIDUCIARIA` | Alianza Fiduciaria |
+| `CO_BAN100` | Ban100 |
+| `CO_BANCAMIA` | Bancamia |
+| `CO_AGRARIO` | Banco Agrario |
+| `CO_CAJA_SOCIAL` | Banco Caja Social |
+| `CO_AV_VILLAS` | Banco AV Villas |
+| `CO_COOMEVA` | Banco Coomeva |
+| `CO_COOPCENTRAL` | Banco Coopcentral |
+| `CO_COOPCENTRAL_DIGITAL` | Banco Coopcentral Digital |
+| `CO_DAVIVIENDA` | Banco Davivienda |
+| `CO_BOGOTA` | Banco de Bogota |
+| `CO_OCCIDENTE` | Banco de Occidente |
+| `CO_FALABELLA` | Banco Falabella |
+| `CO_FINANDINA` | Banco Finandina |
+| `CO_GNB_SUDAMERIS` | Banco GNB Sudameris |
+| `CO_JP_MORGAN` | Banco JP Morgan |
+| `CO_MUNDO_MUJER` | Banco Mundo Mujer |
+| `CO_PICHINCHA` | Banco Pichincha |
+| `CO_POPULAR` | Banco Popular |
+| `CO_SANTANDER` | Banco Santander |
+| `CO_SERFINANZA` | Banco Serfinanza |
+| `CO_UNION` | Banco Union |
+| `CO_BANCOLOMBIA` | Bancolombia |
+| `CO_BANKA` | Banka |
+| `CO_BBVA` | BBVA |
+| `CO_BOLD_CF` | Bold CF |
+| `CO_CITIBANK` | Citibank |
+| `CO_COINK` | Coink |
+| `CO_COLTEFINANCIERA` | Coltefinanciera |
+| `CO_CONFIAR` | Confiar |
+| `CO_COOFINEP` | Coofinep |
+| `CO_COTRAFA` | Cotrafa |
+| `CO_CFA` | CFA |
+| `CO_CREZCAMOS` | Crezcamos |
+| `CO_DALE` | Dale |
+| `CO_DAVIPLATA` | Daviplata |
+| `CO_DING` | Ding |
+| `CO_FINANCIERA_JURISCOOP` | Financiera Juriscoop |
+| `CO_GLOBAL66` | Global66 |
+| `CO_IRIS` | Iris |
+| `CO_ITAU` | Itau |
+| `CO_JFK` | JFK |
+| `CO_LULO_BANK` | Lulo Bank |
+| `CO_MOVII` | Movii |
+| `CO_NEQUI` | Nequi |
+| `CO_NU` | Nu |
+| `CO_PAYCASH` | Paycash |
+| `CO_POWWI` | Powwi |
+| `CO_RAPPIPAY` | RappiPay |
+| `CO_SANTANDER_CONSUMER` | Santander Consumer |
+| `CO_SCOTIABANK_COLPATRIA` | Scotiabank Colpatria |
+| `CO_UALA` | Uala |
+| `CO_SUPERDIGITAL` | Superdigital |
+
+## Supported person types
+
+Use one of the following values in `pse.personType`:
+
+| Value | Description |
+| --- | --- |
+| `NATURAL` | Individual person paying with a personal bank account. |
+| `BUSINESS` | Company or legal entity paying with a business bank account. |
+
+## Response example
+
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "amount": 10000,
+  "currency": "COP",
+  "status": "PROCESSING",
+  "rail": "PSE",
+  "reference": "1001122",
+  "inlineCustomer": {
+    "name": "John Doe",
+    "idType": "CO_CC",
+    "idNumber": "1000000001",
+    "email": "john.doe@doe.com",
+    "phone": "+573131111111"
+  },
+  "errorCode": null,
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "resultAt": null,
+  "organizationId": "123e4567-e89b-12d3-a456-426614174000",
+  "sourceData": {
+    "bank": "CO_BANCOLOMBIA",
+    "personType": "NATURAL"
+  },
+  "callbackUrl": "https://portal.hellopay.com.co"
+}
+```
+
+## What the response means
+
+- `status: "PROCESSING"` means the payin was created and is waiting for the payer to complete the PSE flow.
+- `sourceData` echoes the PSE-specific data associated with the payin, including the selected bank and person type.
+- The final outcome is delivered asynchronously through webhooks, so do not treat the creation response as the final payment result.

@@ -27,15 +27,15 @@ The events' payload are in JSON format. Find below the spec:
 ```javascript
 {
   event: 'payin.processing' | 'payin.confirmed' | 'payin.canceled' | 'payin.declined';
-  resource: 'payout';
+  resource: 'payin';
   data: {
     id: string;
     reference: string | null;
     amount: number;
     currency: 'COP';
     status: 'PROCESSING' | 'CONFIRMED' | 'CANCELED' | 'DECLINED';
-    rail: 'BRE_B';
-    targetData: object;
+    rail: 'BRE_B' | 'PSE';
+    sourceData: object;
     errorCode: string | null;
     createdAt: Date;
     updatedAt: Date;
