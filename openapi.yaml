@@ -3,64 +3,28 @@ paths:
   /ledger/entries:
     get:
       description: >-
-        Retrieves a paginated list of ledger entries.
+        Retrieves a cursor-paginated list of ledger entries.
       operationId: LedgerController_getLedgerEntries
       parameters:
-        - name: page
+        - name: pageSize
           required: false
           in: query
-          description: Page number for pagination
-          schema:
-            minimum: 1
-            default: 1
-            example: 1
-            type: number
-        - name: limit
-          required: false
-          in: query
-          description: Number of items per page
+          description: Number of items to return
           schema:
             minimum: 1
             default: 10
             example: 10
             type: number
-        - name: total
+        - name: cursor
           required: false
           in: query
-          description: Total number of items
+          description: Opaque cursor returned by the previous response
           schema:
-            minimum: 1
-            default: 100
-            example: 100
-            type: number
-        - name: totalPages
-          required: false
-          in: query
-          description: Total number of pages
-          schema:
-            minimum: 1
-            default: 10
-            example: 10
-            type: number
-        - name: hasNext
-          required: false
-          in: query
-          description: Whether there is a next page
-          schema:
-            default: true
-            example: true
-            type: boolean
-        - name: hasPrev
-          required: false
-          in: query
-          description: Whether there is a previous page
-          schema:
-            default: false
-            example: false
-            type: boolean
+            example: eyJjcmVhdGVkQXQiOiIyMDI2LTAzLTEzVDE0OjAwOjAwLjAwMFoiLCJpZCI6ImxlZF8xMjMifQ==
+            type: string
       responses:
         '200':
-          description: List of ledger entries with pagination
+          description: List of ledger entries with cursor pagination
           content:
             application/json:
               schema:
@@ -113,65 +77,29 @@ paths:
         - Payouts
     get:
       description: >-
-        Retrieves a paginated list of payouts for the authenticated
-        organization. Requires JWT authentication.
+        Retrieves a cursor-paginated list of payouts for the authenticated
+        organization.
       operationId: PayoutsController_getPayouts
       parameters:
-        - name: page
+        - name: pageSize
           required: false
           in: query
-          description: Page number for pagination
-          schema:
-            minimum: 1
-            default: 1
-            example: 1
-            type: number
-        - name: limit
-          required: false
-          in: query
-          description: Number of items per page
+          description: Number of items to return
           schema:
             minimum: 1
             default: 10
             example: 10
             type: number
-        - name: total
+        - name: cursor
           required: false
           in: query
-          description: Total number of items
+          description: Opaque cursor returned by the previous response
           schema:
-            minimum: 1
-            default: 100
-            example: 100
-            type: number
-        - name: totalPages
-          required: false
-          in: query
-          description: Total number of pages
-          schema:
-            minimum: 1
-            default: 10
-            example: 10
-            type: number
-        - name: hasNext
-          required: false
-          in: query
-          description: Whether there is a next page
-          schema:
-            default: true
-            example: true
-            type: boolean
-        - name: hasPrev
-          required: false
-          in: query
-          description: Whether there is a previous page
-          schema:
-            default: false
-            example: false
-            type: boolean
+            example: eyJjcmVhdGVkQXQiOiIyMDI2LTAzLTEzVDE0OjAwOjAwLjAwMFoiLCJpZCI6InBvdXRfMTIzIn0=
+            type: string
       responses:
         '200':
-          description: List of payouts with pagination
+          description: List of payouts with cursor pagination
           content:
             application/json:
               schema:
@@ -183,7 +111,7 @@ paths:
         - Payouts
   /payouts/{id}:
     get:
-      description: Retrieves a single payout by ID. Requires JWT authentication.
+      description: Retrieves a single payout by ID.
       operationId: PayoutsController_getPayout
       parameters:
         - name: id
@@ -255,64 +183,28 @@ paths:
       tags:
         - Payins
     get:
-      description: Retrieves a paginated list of payins for the authenticated organization.
+      description: Retrieves a cursor-paginated list of payins for the authenticated organization.
       operationId: PayinsController_getPayins
       parameters:
-        - name: page
+        - name: pageSize
           required: false
           in: query
-          description: Page number for pagination
-          schema:
-            minimum: 1
-            default: 1
-            example: 1
-            type: number
-        - name: limit
-          required: false
-          in: query
-          description: Number of items per page
+          description: Number of items to return
           schema:
             minimum: 1
             default: 10
             example: 10
             type: number
-        - name: total
+        - name: cursor
           required: false
           in: query
-          description: Total number of items
+          description: Opaque cursor returned by the previous response
           schema:
-            minimum: 1
-            default: 100
-            example: 100
-            type: number
-        - name: totalPages
-          required: false
-          in: query
-          description: Total number of pages
-          schema:
-            minimum: 1
-            default: 10
-            example: 10
-            type: number
-        - name: hasNext
-          required: false
-          in: query
-          description: Whether there is a next page
-          schema:
-            default: true
-            example: true
-            type: boolean
-        - name: hasPrev
-          required: false
-          in: query
-          description: Whether there is a previous page
-          schema:
-            default: false
-            example: false
-            type: boolean
+            example: eyJjcmVhdGVkQXQiOiIyMDI2LTAzLTEzVDE0OjAwOjAwLjAwMFoiLCJpZCI6InBheV8xMjMifQ==
+            type: string
       responses:
         '200':
-          description: List of payins with pagination
+          description: List of payins with cursor pagination
           content:
             application/json:
               schema:
@@ -471,43 +363,32 @@ components:
         - prePostedBalance
         - postPostedBalance
         - metadata
-    PaginationDto:
+    PageInfoDto:
       type: object
       properties:
-        page:
-          type: number
-          description: Page number for pagination
-          example: 1
-          minimum: 1
-          default: 1
-        limit:
-          type: number
-          description: Number of items per page
-          example: 10
-          minimum: 1
-          default: 10
-        total:
-          type: number
-          description: Total number of items
-          example: 100
-          minimum: 1
-          default: 100
-        totalPages:
-          type: number
-          description: Total number of pages
-          example: 10
-          minimum: 1
-          default: 10
         hasNext:
           type: boolean
           description: Whether there is a next page
           example: true
-          default: true
-        hasPrev:
+        nextCursor:
+          type: string
+          nullable: true
+          description: Cursor to request the next page
+          example: eyJjcmVhdGVkQXQiOiIyMDI2LTAzLTEzVDE0OjAwOjAwLjAwMFoiLCJpZCI6InBheV8xMjMifQ==
+        hasPrevious:
           type: boolean
           description: Whether there is a previous page
           example: false
-          default: false
+        previousCursor:
+          type: string
+          nullable: true
+          description: Cursor to request the previous page
+          example: null
+      required:
+        - hasNext
+        - nextCursor
+        - hasPrevious
+        - previousCursor
     LedgerEntriesResponseDto:
       type: object
       properties:
@@ -516,13 +397,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/LedgerEntryResponse'
-        pagination:
-          description: The pagination metadata
+        pageInfo:
+          description: Cursor pagination metadata
           allOf:
-            - $ref: '#/components/schemas/PaginationDto'
+            - $ref: '#/components/schemas/PageInfoDto'
       required:
         - data
-        - pagination
+        - pageInfo
     BalanceResponseDto:
       type: object
       properties:
@@ -618,9 +499,9 @@ components:
           type: string
           description: Payer legal person type
           enum:
-            - NATURAL
+            - INDIVIDUAL
             - BUSINESS
-          example: NATURAL
+          example: INDIVIDUAL
       required:
         - bank
         - personType
@@ -765,40 +646,6 @@ components:
         - updatedAt
         - organizationId
         - targetData
-    PaginationMetadata:
-      type: object
-      properties:
-        page:
-          type: number
-          description: Current page number
-          example: 1
-        limit:
-          type: number
-          description: Number of items per page
-          example: 10
-        total:
-          type: number
-          description: Total number of items
-          example: 100
-        totalPages:
-          type: number
-          description: Total number of pages
-          example: 10
-        hasNext:
-          type: boolean
-          description: Whether there is a next page
-          example: true
-        hasPrev:
-          type: boolean
-          description: Whether there is a previous page
-          example: false
-      required:
-        - page
-        - limit
-        - total
-        - totalPages
-        - hasNext
-        - hasPrev
     PayoutsResponseDto:
       type: object
       properties:
@@ -807,13 +654,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PayoutResponse'
-        pagination:
-          description: Pagination metadata
+        pageInfo:
+          description: Cursor pagination metadata
           allOf:
-            - $ref: '#/components/schemas/PaginationMetadata'
+            - $ref: '#/components/schemas/PageInfoDto'
       required:
         - data
-        - pagination
+        - pageInfo
     BrebKeyDetailsDto:
       type: object
       properties:
@@ -1057,13 +904,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PayinResponse'
-        pagination:
-          description: Pagination metadata
+        pageInfo:
+          description: Cursor pagination metadata
           allOf:
-            - $ref: '#/components/schemas/PaginationMetadata'
+            - $ref: '#/components/schemas/PageInfoDto'
       required:
         - data
-        - pagination
+        - pageInfo
     EmbedUrlResponseDto:
       type: object
       properties:
