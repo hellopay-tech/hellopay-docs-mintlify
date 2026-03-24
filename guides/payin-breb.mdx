@@ -4,7 +4,7 @@ description: 'Use BREB to collect a payin with a BREB key.'
 icon: 'wallet'
 ---
 
-Use `rail: "BRE_B"` when you want to collect a payin using a BREB key.
+Use `rail: "BRE_B"` when you want to collect a payin through the BREB flow.
 
 Before implementing this rail:
 
@@ -14,38 +14,69 @@ Before implementing this rail:
 
 ## Recommended BREB flow
 
-1. Create the payin with `rail: "BRE_B"` and the target `breb.keyString`.
+1. Create the payin with `rail: "BRE_B"` and the desired `breb.keyType`.
 2. HelloPay creates the payin in `PROCESSING`.
-3. Right after creation, `sourceData.keyString` is `null`.
-4. Poll the payin or wait for webhook events until HelloPay updates the transaction with the BREB-specific data and final status.
-5. Track the final state through webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
+3. For `SINGLE_USE`, HelloPay returns the generated BREB key in `sourceData.keyString`.
+4. For `QR_CODE`, HelloPay also returns `sourceData.qrString` with a base64 image that you can render as a QR.
+5. Poll the payin or wait for webhook events until HelloPay updates the transaction with the BREB-specific data and final status.
+6. Track the final state through webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
 
-## Request example
+## Request examples
 
-This flow is asynchronous. After creating the payin, `sourceData.keyString` is initially `null` and is populated later when you poll the transaction again.
+<Tabs>
+  <Tab title="SINGLE_USE" icon="key">
+    Use `breb.keyType: "SINGLE_USE"` when you want HelloPay to return only the generated BREB key.
 
-```bash
-curl --location 'https://api.stg.hellopay.com.co/payins' \
---header 'Content-Type: application/json' \
---header 'x-api-key: ••••••' \
---data-raw '{
-  "amountInCents": 10000,
-  "currency": "COP",
-  "rail": "BRE_B",
-  "reference": "1dwDmHerYL5NBQZ",
-  "inlineCustomer": {
-    "name": "John Doe",
-    "idType": "CO_CC",
-    "idNumber": "1000000001",
-    "email": "john.doe@doe.com",
-    "phone": "+573137772121"
-  },
-  "breb": {
-    "keyString": "@alphamunKey01"
-  },
-  "callbackUrl": "https://portal.hellopay.com.co"
-}'
-```
+    ```bash
+    curl --location 'https://api.stg.hellopay.com.co/payins' \
+    --header 'Content-Type: application/json' \
+    --header 'x-api-key: ••••••' \
+    --data-raw '{
+      "amountInCents": 10000,
+      "currency": "COP",
+      "rail": "BRE_B",
+      "reference": "1dwDmHerYL5NBQZ",
+      "inlineCustomer": {
+        "name": "John Doe",
+        "idType": "CO_CC",
+        "idNumber": "1000000001",
+        "email": "john.doe@doe.com",
+        "phone": "+573137772121"
+      },
+      "breb": {
+        "keyType": "SINGLE_USE"
+      },
+      "callbackUrl": "https://portal.hellopay.com.co"
+    }'
+    ```
+  </Tab>
+  <Tab title="QR_CODE" icon="qrcode">
+    Use `breb.keyType: "QR_CODE"` when you want HelloPay to also return a QR image in the payin response.
+
+    ```bash
+    curl --location 'https://api.stg.hellopay.com.co/payins' \
+    --header 'Content-Type: application/json' \
+    --header 'x-api-key: ••••••' \
+    --data-raw '{
+      "amountInCents": 10000,
+      "currency": "COP",
+      "rail": "BRE_B",
+      "reference": "1dwDmHerYL5NBQZ",
+      "inlineCustomer": {
+        "name": "John Doe",
+        "idType": "CO_CC",
+        "idNumber": "1000000001",
+        "email": "john.doe@doe.com",
+        "phone": "+573137772121"
+      },
+      "breb": {
+        "keyType": "QR_CODE"
+      },
+      "callbackUrl": "https://portal.hellopay.com.co"
+    }'
+    ```
+  </Tab>
+</Tabs>
 
 ## Request fields
 
@@ -54,41 +85,83 @@ curl --location 'https://api.stg.hellopay.com.co/payins' \
 - `rail`: must be `BRE_B`.
 - `reference`: your internal identifier for this payin.
 - `inlineCustomer`: customer information used during the payment flow. Supported document types are listed in [How to create your first payin](/guides/how-to-create-first-payin).
-- `breb.keyString`: BREB key used to identify the receiving account.
+- `breb.keyType`: BREB key mode to generate. Use `SINGLE_USE` for a key-only flow or `QR_CODE` to also receive `sourceData.qrString`.
 - `callbackUrl`: URL where the payer is redirected after the payment flow is completed.
 
-## Response example
+## Response examples
 
-```json
-{
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "amount": 10000,
-  "currency": "COP",
-  "status": "PROCESSING",
-  "rail": "BRE_B",
-  "reference": "1dwDmHerYL5NBQZ",
-  "inlineCustomer": {
-    "name": "John Doe",
-    "idType": "CO_CC",
-    "idNumber": "1000000001",
-    "email": "john.doe@doe.com",
-    "phone": "+573137772121"
-  },
-  "errorCode": null,
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "updatedAt": "2024-01-01T00:00:00.000Z",
-  "resultAt": null,
-  "organizationId": "123e4567-e89b-12d3-a456-426614174000",
-  "sourceData": {
-    "keyString": null,
-    "checkoutUrl": "https://pay.stg.hellopay.com.co/transaction?payinId=0f60d574-9704-45a3-926f-189af08c79e4&token=UElVMElHVkk5WDdptCTol2ZISRgy_VHeXy_sc2SH3A"
-  },
-  "callbackUrl": "https://portal.hellopay.com.co"
-}
-```
+<Tabs>
+  <Tab title="SINGLE_USE" icon="key">
+    ```json
+    {
+      "id": "373b1080-62ec-4e65-a4d3-0158f339ca37",
+      "amount": 100,
+      "confirmedAmount": null,
+      "currency": "COP",
+      "status": "PROCESSING",
+      "rail": "BRE_B",
+      "reference": "1dwDmHerYL5NBQZ",
+      "inlineCustomer": {
+        "name": "John Doe",
+        "email": "john.doe@doe.com",
+        "phone": "+573137772121",
+        "idType": "CO_CC",
+        "idNumber": "1000000001"
+      },
+      "errorCode": null,
+      "createdAt": "2026-03-23T22:28:08.724Z",
+      "updatedAt": "2026-03-23T22:28:08.729Z",
+      "resultAt": null,
+      "chargebackAt": null,
+      "organizationId": "db6a6f4f-444a-4221-ac32-695998236e50",
+      "sourceData": {
+        "keyType": "SINGLE_USE",
+        "keyString": "@SANDBOX5AF43BE4F5",
+        "checkoutUrl": "http://localhost:5151/transaction?payinId=373b1080-62ec-4e65-a4d3-0158f339ca37&token=UDJLMFNGSVpLQklpwcH8bjlGnUUDCItxUD0v8loz3w"
+      },
+      "callbackUrl": "https://portal.hellopay.com.co"
+    }
+    ```
+  </Tab>
+  <Tab title="QR_CODE" icon="qrcode">
+    ```json
+    {
+      "id": "373b1080-62ec-4e65-a4d3-0158f339ca37",
+      "amount": 100,
+      "confirmedAmount": null,
+      "currency": "COP",
+      "status": "PROCESSING",
+      "rail": "BRE_B",
+      "reference": "1dwDmHerYL5NBQZ",
+      "inlineCustomer": {
+        "name": "John Doe",
+        "email": "john.doe@doe.com",
+        "phone": "+573137772121",
+        "idType": "CO_CC",
+        "idNumber": "1000000001"
+      },
+      "errorCode": null,
+      "createdAt": "2026-03-23T22:28:08.724Z",
+      "updatedAt": "2026-03-23T22:28:08.729Z",
+      "resultAt": null,
+      "chargebackAt": null,
+      "organizationId": "db6a6f4f-444a-4221-ac32-695998236e50",
+      "sourceData": {
+        "keyType": "QR_CODE",
+        "qrString": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAnsAAAJ7AQMAAACh+...",
+        "keyString": "@SANDBOX5AF43BE4F5",
+        "checkoutUrl": "http://localhost:5151/transaction?payinId=373b1080-62ec-4e65-a4d3-0158f339ca37&token=UDJLMFNGSVpLQklpwcH8bjlGnUUDCItxUD0v8loz3w"
+      },
+      "callbackUrl": "https://portal.hellopay.com.co"
+    }
+    ```
+  </Tab>
+</Tabs>
 
 ## What the response means
 
 - `status: "PROCESSING"` means the payin was created successfully and is waiting for the BREB flow to complete.
-- `sourceData.keyString` is `null` in the creation response and is filled later when you poll the payin again.
+- `sourceData.keyType` tells you which BREB key mode was used for the transaction.
+- `sourceData.keyString` is available in both variants so you can identify the generated BREB key.
+- `sourceData.qrString` is returned only for `QR_CODE` payins and contains a `data:image/png;base64,...` payload ready to render.
 - The creation response is not the final outcome. Rely on webhooks to learn whether the payin was confirmed, canceled, or declined.

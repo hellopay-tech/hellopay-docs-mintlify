@@ -488,6 +488,18 @@ components:
           example: breb-key-string
       required:
         - keyString
+    CreatePayinBrebDto:
+      type: object
+      properties:
+        keyType:
+          type: string
+          description: BREB key mode used to create the payin
+          enum:
+            - SINGLE_USE
+            - QR_CODE
+          example: QR_CODE
+      required:
+        - keyType
     PseDto:
       type: object
       properties:
@@ -802,7 +814,7 @@ components:
         breb:
           description: BREB payment details (required when type is BRE_B)
           allOf:
-            - $ref: '#/components/schemas/BrebDto'
+            - $ref: '#/components/schemas/CreatePayinBrebDto'
         pse:
           description: PSE payment details (required when type is PSE)
           allOf:
@@ -826,6 +838,11 @@ components:
         amount:
           type: number
           description: Payin amount
+          example: 100000
+        confirmedAmount:
+          type: number
+          nullable: true
+          description: Confirmed payin amount
           example: 100000
         currency:
           type: string
@@ -865,11 +882,15 @@ components:
           description: Payin updated at
           example: '2024-01-01T00:00:00.000Z'
         resultAt:
-          type: object
+          format: date-time
+          type: string
+          nullable: true
           description: Payin result at
           example: '2024-01-01T00:00:00.000Z'
         chargebackAt:
-          type: object
+          format: date-time
+          type: string
+          nullable: true
           description: Payin chargeback at
           example: '2024-01-01T00:00:00.000Z'
         organizationId:
@@ -878,10 +899,13 @@ components:
           example: 123e4567-e89b-12d3-a456-426614174000
         sourceData:
           type: object
-          description: Payment-method-specific source data
+          additionalProperties: true
+          description: Payment-method-specific source data. For BRE_B it can include keyType, keyString, qrString, and checkoutUrl.
           example:
-            bank: CO_BANCOLOMBIA
-            personType: NATURAL
+            keyType: QR_CODE
+            qrString: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...
+            keyString: '@SANDBOX5AF43BE4F5'
+            checkoutUrl: https://pay.stg.hellopay.com.co/transaction?payinId=123e4567-e89b-12d3-a456-426614174000&token=token
         callbackUrl:
           type: string
           description: Payin callback URL

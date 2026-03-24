@@ -44,7 +44,7 @@ curl --location 'https://api.stg.hellopay.com.co/payins' \
   },
   "pse": {
     "bank": "CO_BANCOLOMBIA",
-    "personType": "NATURAL"
+    "personType": "INDIVIDUAL"
   },
   "callbackUrl": "https://portal.hellopay.com.co"
 }'
@@ -58,7 +58,7 @@ curl --location 'https://api.stg.hellopay.com.co/payins' \
 - `reference`: your internal identifier for this payin.
 - `inlineCustomer`: customer information used during the payment flow. Supported document types are listed in [How to create your first payin](/guides/how-to-create-first-payin).
 - `pse.bank`: bank selected by the payer from the supported PSE bank list.
-- `pse.personType`: payer type. Supported values are `NATURAL` and `BUSINESS`.
+- `pse.personType`: payer type. Supported values are `INDIVIDUAL` and `BUSINESS`.
 - `callbackUrl`: URL where the payer is redirected after leaving the PSE flow.
 
 ## Supported banks
@@ -129,7 +129,7 @@ Use one of the following values in `pse.personType`:
 
 | Value | Description |
 | --- | --- |
-| `NATURAL` | Individual person paying with a personal bank account. |
+| `INDIVIDUAL` | Individual person paying with a personal bank account. |
 | `BUSINESS` | Company or legal entity paying with a business bank account. |
 
 ## Response example
@@ -155,8 +155,7 @@ Use one of the following values in `pse.personType`:
   "resultAt": null,
   "organizationId": "123e4567-e89b-12d3-a456-426614174000",
   "sourceData": {
-    "pseUrl": null,
-    "checkoutUrl": "https://pay.stg.hellopay.com.co/transaction?payinId=0f60d574-9704-45a3-926f-189af08c79e4&token=UElVMElHVkk5WDdptCTol2ZISRgy_VHeXy_sc2SH3A"
+    "pseUrl": null
   },
   "callbackUrl": "https://portal.hellopay.com.co"
 }

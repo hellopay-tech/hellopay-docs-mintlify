@@ -39,10 +39,10 @@ This behavior applies to both payins and payouts.
 
 ## Polling behavior
 
-For async payin rails such as `PSE` and `BRE_B`, the creation response does not include all source data immediately.
+For async payin rails such as `PSE` and `BRE_B`, the creation response can omit some source data until HelloPay finishes preparing the flow.
 
 - In `PSE` payins, `sourceData.pseUrl` is returned as `null` right after creation.
-- In `BRE_B` payins, `sourceData.keyString` is returned as `null` right after creation.
+- In `BRE_B` payins, `sourceData` depends on `breb.keyType`. `SINGLE_USE` returns the generated key, and `QR_CODE` also returns `sourceData.qrString` with the QR image payload.
 - Poll the transaction after creation to retrieve the updated `sourceData` values once HelloPay finishes populating them.
 - In sandbox, this update follows the same simulated async behavior as production, so you should handle it with polling or webhooks.
 
