@@ -54,14 +54,28 @@
                   "guides/payin-pse",
                   "guides/payin-breb"
                 ]
+              },
+              {
+                "group": "Payment Links",
+                "icon": "link",
+                "pages": [
+                  "guides/payment-links"
+                ]
               }
             ]
           },
           {
             "group": "API reference",
             "icon": "square-terminal",
-            "openapi": "https://api.hellopay.com.co/api-yaml",
+            "openapi": "/openapi.yaml",
             "pages": [
+              {
+                "group": "Payment Links",
+                "icon": "link",
+                "pages": [
+                  "POST /payment-links"
+                ]
+              },
               {
                 "group": "Payins",
                 "icon": "code",

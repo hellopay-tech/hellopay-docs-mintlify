@@ -157,6 +157,31 @@ paths:
       summary: Get BreB key details
       tags:
         - Breb
+  /payment-links:
+    post:
+      description: Creates a new payment link that a payer can be redirected to in order to complete a payment using the enabled payment methods for the merchant.
+      operationId: PaymentLinksController_createPaymentLink
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentLinkDto'
+      responses:
+        '201':
+          description: Payment link successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkResponse'
+        '400':
+          description: Invalid input data
+        '401':
+          description: Unauthorized
+      summary: Create a payment link
+      tags:
+        - Payment Links
   /payins:
     post:
       description: Creates a new payin request.
@@ -977,3 +1002,57 @@ components:
         - month
         - segment
         - confirmedCount
+    CreatePaymentLinkDto:
+      type: object
+      properties:
+        amountType:
+          type: string
+          description: Determines how the payment amount is handled. The only value currently supported is `FIXED`, which means the `amountInCents` you provide is the only amount the payer can pay.
+          enum:
+            - FIXED
+          example: FIXED
+        reference:
+          type: string
+          description: Your internal reference for this payment link. Included in payin webhook events so you can correlate the payin back to this link.
+          example: INV-2026-001
+        amountInCents:
+          type: number
+          description: Amount to collect in cents (COP). Required when `amountType` is `FIXED`.
+          example: 100000
+          minimum: 1
+        callbackUrl:
+          type: string
+          description: URL where the payer is redirected after the payment flow ends, regardless of the outcome.
+          example: https://hellopay.com.co/callback
+      required:
+        - amountType
+        - reference
+        - amountInCents
+        - callbackUrl
+    PaymentLinkResponse:
+      type: object
+      properties:
+        paymentLinkId:
+          type: string
+          format: uuid
+          description: Unique identifier for the payment link (UUID).
+          example: 4a8f2e1b-7c3d-4e5a-9b6c-8d1f2e3a4b5c
+        paymentLinkUrl:
+          type: string
+          description: Full URL to redirect the payer to. The payer will see the enabled payment methods for your merchant account on this page.
+          example: https://pay.hellopay.com.co/link/V1JKU0tQNU02Wklp5lf2gAY8DYXizUKPzcG39x4i_A
+        createdAt:
+          format: date-time
+          type: string
+          description: When the payment link was created.
+          example: '2026-04-20T10:00:00.000Z'
+        expiresAt:
+          format: date-time
+          type: string
+          description: When the payment link expires. After this time, the link can no longer be used to complete a payment.
+          example: '2026-04-20T11:00:00.000Z'
+      required:
+        - paymentLinkId
+        - paymentLinkUrl
+        - createdAt
+        - expiresAt

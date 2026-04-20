@@ -67,3 +67,29 @@ The events' payload are in JSON format. Find below the spec:
   };
 }
 ```
+
+### Payment links
+
+Fired when a payment link is settled. `paymentlink.completed` is sent when the payer successfully pays; `paymentlink.expired` is sent when the 1-hour window elapses without a successful payment. See [Payment links](/guides/payment-links) for full context.
+
+```javascript
+{
+  event: 'paymentlink.completed' | 'paymentlink.expired';
+  resource: 'paymentlink';
+  data: {
+    paymentLinkId: string; // UUID
+    reference: string | null;
+    amount: number;
+    currency: 'COP';
+    status: 'COMPLETED' | 'EXPIRED';
+    createdAt: Date;
+    updatedAt: Date;
+    expiresAt: Date | null;
+    completedAt: Date | null;
+  };
+}
+```
+
+<Note>
+  A successful payment on a payment link can also be detected via the `payin.confirmed` event on the underlying payin. You do not need to listen to both — choose whichever fits your integration.
+</Note>
