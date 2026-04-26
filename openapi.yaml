@@ -1024,6 +1024,17 @@ components:
           type: string
           description: URL where the payer is redirected after the payment flow ends, regardless of the outcome.
           example: https://hellopay.com.co/callback
+        rail:
+          type: string
+          description: Optional default checkout rail. Supported values are `PSE` and `BRE_B`. This does not restrict the payment methods available to the payer.
+          example: PSE
+          enum:
+            - BRE_B
+            - PSE
+        inlineCustomer:
+          description: Optional customer data to reuse when creating the payin from this payment link. If omitted, the payer enters customer details in the checkout.
+          allOf:
+            - $ref: '#/components/schemas/CustomerDataDto'
       required:
         - amountType
         - reference

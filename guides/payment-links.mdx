@@ -4,11 +4,13 @@ description: 'Create a hosted payment page and redirect your payer to complete a
 icon: 'link'
 ---
 
-Use the `/payment-links` endpoint to generate a hosted payment page. Instead of building a custom checkout UI or selecting a specific payment rail yourself, you redirect the payer to a HelloPay-hosted URL where they choose from the payment methods enabled for your account.
+Use the `/payment-links` endpoint to generate a hosted payment page. Instead of building a custom checkout UI, you redirect the payer to a HelloPay-hosted URL where they choose from the payment methods enabled for your account.
+
+You can keep the link fully open, or optionally send a default `rail` and/or `inlineCustomer` when your flow already knows the payer or preferred payment method.
 
 ## How it works
 
-1. Send a `POST` request to `/payment-links` with the amount, your internal reference, and a `callbackUrl`.
+1. Send a `POST` request to `/payment-links` with the amount, your internal reference, a `callbackUrl`, and any optional defaults for the checkout flow.
 2. HelloPay returns a `paymentLinkUrl` — the full URL to redirect the payer to.
 3. Redirect the payer to the `paymentLinkUrl`.
 4. The payer selects their preferred payment method and completes the flow on the HelloPay-hosted page.
@@ -28,7 +30,22 @@ The `paymentLinkUrl` in the response is the full URL of the hosted payment page.
 }
 ```
 
-The page will display all payment methods enabled for your merchant account. The payer selects the one they want to use and completes the payment without any further action required on your end.
+The page will display the payment methods enabled for your merchant account. If you send `rail`, HelloPay uses it as the default payment method in the checkout, while the enabled payment methods remain available. If you send `inlineCustomer`, HelloPay reuses that customer data when creating the payin from the link.
+
+## Choosing the right flow
+
+`rail` and `inlineCustomer` are optional. Include them only when they match the experience you want to build:
+
+| Flow | Fields to send | When to use it |
+| --- | --- | --- |
+| Open checkout | Omit both fields | The payer should choose the payment method and enter their own details. |
+| Suggested payment method | Send `rail` only | You want the checkout to start on `PSE` or `BRE_B`, but still use the payer-entered customer data. |
+| Pre-filled customer | Send `inlineCustomer` only | You already collected customer details and want to avoid asking for them again. |
+| Preset checkout | Send both fields | You already know the payer and preferred payment method for the order. |
+
+<Note>
+  `rail` is a checkout default, not a payment-method restriction. The available payment methods are still determined by your merchant configuration.
+</Note>
 
 <Warning>
   Payment links expire after 1 hour. The `expiresAt` field tells you exactly when. Do not attempt to reuse a link after it has expired — create a new one instead.
@@ -133,6 +150,8 @@ After the payment flow ends — regardless of whether the payment succeeded or f
 | `amountInCents` | `number` | Yes | Amount to collect in cents (COP). |
 | `reference` | `string` | Yes | Your internal reference for this payment. Returned in payment-link webhook events. |
 | `callbackUrl` | `string` | Yes | URL to redirect the payer to after the payment flow ends. |
+| `rail` | `string` | No | Default checkout rail. Supported values are `PSE` and `BRE_B`. This does not restrict the payment methods available to the payer. |
+| `inlineCustomer` | `object` | No | Customer information to reuse when creating the payin from this link. If omitted, the payer enters customer details in the checkout. |
 
 <Note>
   `amountType` currently only supports `FIXED`. Additional amount-handling modes may be introduced in the future.
@@ -149,9 +168,19 @@ curl --request POST \
     "amountType": "FIXED",
     "reference": "INV-2026-001",
     "amountInCents": 100000,
-    "callbackUrl": "https://hellopay.com.co/callback"
+    "callbackUrl": "https://hellopay.com.co/callback",
+    "rail": "PSE",
+    "inlineCustomer": {
+      "name": "John Doe",
+      "idType": "CO_CC",
+      "idNumber": "1000000001",
+      "email": "john.doe@example.com",
+      "phone": "+573001234567"
+    }
   }'
 ```
+
+In this example, `rail` and `inlineCustomer` are included to preconfigure the checkout. You can omit either or both depending on your flow.
 
 ## Sample response
 
