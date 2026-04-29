@@ -73,7 +73,8 @@
                 "group": "Payment Links",
                 "icon": "link",
                 "pages": [
-                  "POST /payment-links"
+                  "POST /payment-links",
+                  "GET /payment-links/{paymentLinkId}"
                 ]
               },
               {
