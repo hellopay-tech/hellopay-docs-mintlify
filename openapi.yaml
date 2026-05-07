@@ -1216,6 +1216,15 @@ components:
     ProcessPsePayinDto:
       type: object
       properties: {}
+    PaymentWizardPseDto:
+      type: object
+      properties:
+        bank:
+          type: string
+          description: PSE bank selected by the payer. Required when pse is provided.
+          example: CO_BANCOLOMBIA
+      required:
+        - bank
     PaymentWizardCreationRequest:
       type: object
       properties:
@@ -1229,11 +1238,24 @@ components:
             Webhook callback URL attached to payins created from this payment
             link
           example: https://example.com/callback
+        pse:
+          description: PSE payment details attached to this payment wizard when rail is PSE
+          allOf:
+            - $ref: '#/components/schemas/PaymentWizardPseDto'
       required:
         - amountType
     PaymentWizardCreationResponse:
       type: object
       properties: {}
+    PaymentLinkPseDto:
+      type: object
+      properties:
+        bank:
+          type: string
+          description: PSE bank selected by the payer. Required when pse is provided.
+          example: CO_BANCOLOMBIA
+      required:
+        - bank
     CreatePaymentLinkDto:
       type: object
       properties:
@@ -1269,6 +1291,10 @@ components:
             link
           allOf:
             - $ref: '#/components/schemas/CustomerDataDto'
+        pse:
+          description: PSE payment details attached to this payment link when rail is PSE
+          allOf:
+            - $ref: '#/components/schemas/PaymentLinkPseDto'
       required:
         - amountType
         - reference

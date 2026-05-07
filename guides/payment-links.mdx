@@ -6,7 +6,7 @@ icon: 'link'
 
 Use the `/payment-links` endpoint to generate a hosted payment page. Instead of building a custom checkout UI, you redirect the payer to a HelloPay-hosted URL where they choose from the payment methods enabled for your account.
 
-You can keep the link fully open, or optionally send a default `rail` and/or `inlineCustomer` when your flow already knows the payer or preferred payment method.
+You can keep the link fully open, or optionally send defaults such as `rail`, `inlineCustomer`, or `pse.bank` when your flow already knows the payer, preferred payment method, or selected PSE bank.
 
 ## How it works
 
@@ -41,10 +41,11 @@ The page will display the payment methods enabled for your merchant account. If 
 
 | Flow | Fields to send | When to use it |
 | --- | --- | --- |
-| Open checkout | Omit both fields | The payer chooses the payment method and enters their own details. |
+| Open checkout | Omit optional checkout fields | The payer chooses the payment method and enters their own details. |
 | Restricted payment method | Send `rail` only | You want to lock the payment link to a specific rail (`PSE` or `BRE_B`). The payer will not be able to choose a different method. |
+| PSE bank preselection | Send `rail: "PSE"` and `pse.bank` | You already collected the payer's PSE bank and want to attach it to the payment link. If omitted, the payer selects the bank in the hosted checkout. |
 | Pre-filled customer | Send `inlineCustomer` only | You already collected customer details and want to skip asking for them again. |
-| Restricted and pre-filled | Send both fields | You know both the payer and the required payment method. |
+| Restricted and pre-filled | Send `rail` and `inlineCustomer` | You know both the payer and the required payment method. |
 
 <Warning>
   When `rail` is set, it **restricts** the payment link to that rail only. The payer cannot select a different payment method. Omit `rail` if you want the payer to choose from all payment methods enabled for your account.
@@ -150,6 +151,8 @@ After the payment flow ends — regardless of whether the payment succeeded or f
 | `callbackUrl` | `string` | Yes | URL to redirect the payer to after the payment flow ends. |
 | `rail` | `string` | No | Restricts the payment link to a single rail. Accepted values: `PSE`, `BRE_B`. When set, the payer cannot choose a different payment method. Omit to allow the payer to choose from all enabled methods. |
 | `inlineCustomer` | `object` | No | Customer data to attach to the payin created from this link. If omitted, the payer enters their details in the checkout. |
+| `pse` | `object` | No | PSE-specific defaults for the payment link. Only send this object when `rail` is `PSE`. |
+| `pse.bank` | `string` | No | PSE bank selected by the payer. When `pse` is sent, `bank` must be present. Use one of the supported bank codes from the [PSE payin guide](/guides/payin-pse#supported-banks). If omitted, the payer selects the bank in the hosted checkout. |
 
 <Note>
   `amountType` currently only supports `FIXED`. Additional amount-handling modes may be introduced in the future.
@@ -168,6 +171,9 @@ curl --request POST \
     "amountInCents": 100000,
     "callbackUrl": "https://hellopay.com.co/callback",
     "rail": "PSE",
+    "pse": {
+      "bank": "CO_BANCOLOMBIA"
+    },
     "inlineCustomer": {
       "name": "John Doe",
       "idType": "CO_CC",
@@ -178,7 +184,7 @@ curl --request POST \
   }'
 ```
 
-In this example, `rail` and `inlineCustomer` are included to preconfigure the checkout. You can omit either or both depending on your flow.
+In this example, `rail`, `pse.bank`, and `inlineCustomer` are included to preconfigure the checkout. You can omit any optional field depending on your flow. Only send `pse` when `rail` is `PSE`.
 
 ## Sample response
 
