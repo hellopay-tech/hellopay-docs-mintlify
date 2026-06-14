@@ -1,0 +1,164 @@
+---
+title: "AI Agent Skill"
+description: "Install the HelloPay Agent Skill so your AI coding assistant can integrate the API for you."
+icon: "robot"
+---
+
+HelloPay ships an **Agent Skill** — a packaged set of instructions, references, and a
+ready-to-use client that teaches AI coding agents (Claude Code, Cursor, Codex, and
+others) how to integrate the HelloPay API correctly. Once installed, your agent knows
+how to create payins and payouts, generate payment links, choose between PSE and
+BRE-B, poll async transactions, and wire up webhooks — without you pasting docs into
+every prompt.
+
+The skill follows the open [Agent Skills](https://agentskills.io/specification)
+standard (a `SKILL.md` file plus on-demand `references/` and `assets/`) and lives in
+this repository under [`skills/hellopay-payments`](https://github.com/hellopay-tech/hellopay-docs-mintlify/tree/main/skills/hellopay-payments).
+
+<Note>
+  The skill is for **AI coding agents** that help you build your integration. It is
+  not an SDK you import at runtime — but it does ship a copy-paste TypeScript client
+  (`assets/hellopay-client.ts`) your agent can drop into your backend.
+</Note>
+
+## Compatible agents
+
+The skill works with any tool that supports the Agent Skills standard, including
+**Claude Code**, **Cursor**, **Codex**, **Cline**, **Windsurf**, **GitHub Copilot**,
+and others. Installation is handled by the [`skills`](https://www.skills.sh) CLI,
+which auto-detects the agents you have installed.
+
+## Install from this repo
+
+The fastest way is the `skills` CLI (no global install needed — `npx` runs it on
+demand). Point it at this repository and pick the `hellopay-payments` skill.
+
+<Steps>
+  <Step title="See what's available (optional)">
+    List the skills published in this repo before installing:
+
+    ```bash
+    npx skills add hellopay-tech/hellopay-docs-mintlify --list
+    ```
+  </Step>
+  <Step title="Install the skill">
+    Install `hellopay-payments` into the agents the CLI detects:
+
+    ```bash
+    npx skills add hellopay-tech/hellopay-docs-mintlify --skill hellopay-payments
+    ```
+
+    Or target the skill directly by its path in the repo:
+
+    ```bash
+    npx skills add https://github.com/hellopay-tech/hellopay-docs-mintlify/tree/main/skills/hellopay-payments
+    ```
+  </Step>
+  <Step title="Start integrating">
+    Open your AI agent and ask it to build with HelloPay — for example,
+    *"Create a PSE payin with the HelloPay skill."* The skill activates automatically
+    based on the request. See [Using the skill](#using-the-skill).
+  </Step>
+</Steps>
+
+### Choose scope and target agent
+
+<CodeGroup>
+```bash Project scope (default)
+# Installs into the current project, e.g. ./.claude/skills/
+npx skills add hellopay-tech/hellopay-docs-mintlify --skill hellopay-payments
+```
+
+```bash Global scope
+# Installs for your user, e.g. ~/.claude/skills/ — available in every project
+npx skills add hellopay-tech/hellopay-docs-mintlify --skill hellopay-payments -g
+```
+
+```bash Specific agent(s)
+# Install only into the agents you choose
+npx skills add hellopay-tech/hellopay-docs-mintlify --skill hellopay-payments -a claude-code -a cursor
+```
+</CodeGroup>
+
+<Tip>
+  Add `-y` to skip confirmation prompts, and `--copy` to copy the files instead of
+  symlinking them (useful if you want to pin a version that won't change when you run
+  `update`).
+</Tip>
+
+### Try it without installing
+
+Use the skill for a single session without writing it into your project:
+
+```bash
+npx skills use https://github.com/hellopay-tech/hellopay-docs-mintlify/tree/main/skills/hellopay-payments
+```
+
+### Manual install
+
+If you'd rather not use the CLI, copy the folder into your agent's skills directory.
+For Claude Code:
+
+```bash
+# Project scope
+mkdir -p .claude/skills
+cp -r path/to/hellopay-docs-mintlify/skills/hellopay-payments .claude/skills/
+
+# Or global scope
+cp -r path/to/hellopay-docs-mintlify/skills/hellopay-payments ~/.claude/skills/
+```
+
+The skill is self-contained — keep the `SKILL.md`, `references/`, and `assets/`
+together in the `hellopay-payments/` folder.
+
+## Using the skill
+
+After installing, the skill **activates automatically** when you ask your agent to do
+something HelloPay-related, because its description advertises the relevant keywords
+(payins, payouts, PSE, BRE-B, payment links, webhooks, sandbox). You can also invoke
+it explicitly by name.
+
+Example prompts:
+
+- *"Create a BRE-B payout to `@someKey` for 10,000 COP using the HelloPay skill."*
+- *"Add a `/payment-links` checkout to my Express app and handle the
+  `paymentlink.completed` webhook."*
+- *"Wire HelloPay webhooks with an idempotent handler and verify the auth header."*
+- *"Generate a HelloPay client and poll a PSE payin until `pseUrl` is ready."*
+
+The agent loads the full instructions on activation and pulls in individual reference
+files (e.g. the PSE bank-code table) only when a task needs them, so it stays accurate
+without flooding the context.
+
+<Note>
+  Always have your agent build and test against the
+  [sandbox](/getting-started/sandbox) first, and use an
+  [API key](/getting-started/authentication) stored server-side.
+</Note>
+
+## What's included
+
+| File | Purpose |
+| --- | --- |
+| `SKILL.md` | Auth, environments, core concepts, quickstarts, and the endpoint catalog |
+| `references/payins.md` | PSE and BRE-B payin flows, polling, and response shapes |
+| `references/payouts.md` | BRE-B and Transfiya payout flows and key validation |
+| `references/payment-links.md` | Hosted checkout and payment-link webhooks |
+| `references/webhooks.md` | Event payloads, retry rules, and a sample handler |
+| `references/sandbox.md` | Sandbox outcomes, timing, and a test plan |
+| `references/api-catalog.md` | Every endpoint, pagination, and conventions |
+| `references/pse-banks.md` | Full PSE bank-code table |
+| `assets/hellopay-client.ts` | Minimal, dependency-free TypeScript client |
+
+## Keep it updated
+
+```bash
+# Update to the latest version published in this repo
+npx skills update hellopay-payments
+
+# List installed skills
+npx skills list
+
+# Remove it
+npx skills remove hellopay-payments
+```

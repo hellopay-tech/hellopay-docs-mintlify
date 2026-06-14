@@ -36,6 +36,7 @@
             "icon": "play",
               "pages": [
                 "index",
+                "getting-started/ai-skill",
                 "getting-started/authentication",
                 "getting-started/sandbox",
                 "getting-started/webhooks"
