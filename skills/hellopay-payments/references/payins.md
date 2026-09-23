@@ -2,8 +2,9 @@
 
 A **payin** collects money from a payer. Create one with `POST /payins`, choose a
 `rail`, and complete the payer-facing flow. Payins are **asynchronous**: the create
-response is the initial state, and `sourceData` is filled in shortly after — poll the
-payin (or wait for webhooks) before redirecting the payer.
+response is the initial state. PSE and BRE-B may populate `sourceData` later;
+Nequi includes the payer's phone immediately. Poll for needed source data and
+confirm the final status through polling or webhooks.
 
 ## Endpoints
 
@@ -20,11 +21,12 @@ payin (or wait for webhooks) before redirecting the payer.
 | --- | --- | --- | --- |
 | `amountInCents` | number | Yes | Integer minor units (cents), ≥ 1 |
 | `currency` | string | Yes | `COP` |
-| `rail` | string | Yes | `PSE` or `BRE_B` |
+| `rail` | string | Yes | `PSE`, `BRE_B`, or `NEQUI` |
 | `reference` | string | Yes | Your internal id; echoed in responses & webhooks |
 | `inlineCustomer` | object | Yes | Payer identity (see below) |
 | `pse` | object | When `rail=PSE` | `{ bank, personType }` |
 | `breb` | object | When `rail=BRE_B` | `{ keyType }` |
+| `inlineCustomer.phone` | string | Yes | Colombian mobile in `+573XXXXXXXXX` format; used to request a Nequi payment |
 | `callbackUrl` | string | No | Browser return URL after the flow ends |
 
 `inlineCustomer`: `{ name, idType, idNumber, phone, email }`. `idType` ∈
@@ -32,13 +34,12 @@ payin (or wait for webhooks) before redirecting the payer.
 
 ## General lifecycle
 
-1. `POST /payins` with amount, customer, `rail`, and the method object.
-2. HelloPay returns the payin in `PROCESSING` with partial `sourceData`.
-3. For async rails, **poll** `GET /payins/{id}` until `sourceData` is populated.
-4. Send the payer to the redirect URL / show the key or QR.
+1. `POST /payins` with amount, customer, `rail`, and a method object when the rail requires one.
+2. HelloPay returns an initial payin state (`PENDING` for `POST /payins`) with rail-specific `sourceData`.
+3. For PSE and BRE-B, **poll** `GET /payins/{id}` if needed source data is not yet populated.
+4. Send the payer to the redirect URL, show the key or QR, or ask them to approve the Nequi request.
 5. The payer completes payment.
-6. HelloPay sends webhooks (`payin.confirmed` / `payin.declined` / `payin.canceled`)
-   and redirects the payer to `callbackUrl`.
+6. HelloPay sends webhooks (`payin.confirmed` / `payin.declined` / `payin.canceled`).
 
 > The create response is **not** the final result. Confirm via webhooks. See
 > [webhooks.md](webhooks.md).
@@ -154,16 +155,48 @@ Response (`QR_CODE`):
 
 ---
 
+## Nequi rail (`rail: "NEQUI"`)
+
+Collect from the Nequi account associated with `inlineCustomer.phone`. Send a
+Colombian mobile number in `+573XXXXXXXXX` format. No `nequi` request object is
+needed. The payer approves the request in Nequi; there is no redirect URL or QR.
+
+```bash
+curl --location 'https://api.stg.hellopay.com.co/payins' \
+  --header 'Content-Type: application/json' \
+  --header 'x-api-key: YOUR_API_KEY' \
+  --data-raw '{
+    "amountInCents": 10000,
+    "currency": "COP",
+    "rail": "NEQUI",
+    "reference": "INV-2026-001",
+    "inlineCustomer": {
+      "name": "John Doe", "idType": "CO_CC", "idNumber": "1000000001",
+      "email": "john.doe@example.com", "phone": "+573001234567"
+    },
+    "callbackUrl": "https://your-app.com/checkout/return"
+  }'
+```
+
+The create response contains `sourceData: { "phone": "+573001234567" }`. For
+`POST /payins`, the initial status is `PENDING`; it then moves to `PROCESSING`.
+Wait for a terminal `payin.*` webhook or poll `GET /payins/{id}`. HelloPay checks
+unresolved Nequi payins after 15 minutes and declines those that remain pending.
+See the [Nequi payin guide](/guides/payin-nequi) for a response example.
+
+---
+
 ## Polling guidance
 
-Async rails populate `sourceData` after creation:
+Rail-specific `sourceData` behavior:
 
 - **PSE** → wait for `sourceData.pseUrl` (initially `null`).
 - **BRE-B** → `SINGLE_USE` returns `keyString`; `QR_CODE` also returns `qrString`.
+- **Nequi** → `sourceData.phone` is available on creation. Poll for the final status, not for a redirect URL.
 
-Poll `GET /payins/{id}` on a short interval until the field you need is non-null and
-`status` advances. In the sandbox this update follows the same simulated async
-behavior as production, so build polling (or webhooks) into your flow from the start.
+Poll `GET /payins/{id}` on a short interval until the field you need is non-null or
+`status` is terminal. In the sandbox, PSE and BRE-B source-data updates follow the
+same simulated async behavior as production.
 
 ## Response fields worth noting
 
@@ -172,4 +205,4 @@ behavior as production, so build polling (or webhooks) into your flow from the s
 - `confirmedAmount` / `confirmedAmountInCents` — populated once confirmed.
 - `errorCode` — non-null when a transaction fails.
 - `resultAt` — timestamp of the terminal result; `chargebackAt` if charged back.
-- `sourceData` — rail-specific payload (redirect URL, key, QR).
+- `sourceData` — rail-specific payload (redirect URL, key, QR, or Nequi phone).

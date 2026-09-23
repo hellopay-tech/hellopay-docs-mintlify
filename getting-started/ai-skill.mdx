@@ -7,8 +7,8 @@ icon: "robot"
 HelloPay ships an **Agent Skill** — a packaged set of instructions, references, and a
 ready-to-use client that teaches AI coding agents (Claude Code, Cursor, Codex, and
 others) how to integrate the HelloPay API correctly. Once installed, your agent knows
-how to create payins and payouts, generate payment links, choose between PSE and
-BRE-B, poll async transactions, and wire up webhooks — without you pasting docs into
+how to create payins and payouts, generate payment links, choose between PSE, BRE-B, and Nequi,
+poll async transactions, and wire up webhooks — without you pasting docs into
 every prompt.
 
 The skill follows the open [Agent Skills](https://agentskills.io/specification)
@@ -115,7 +115,7 @@ together in the `hellopay-payments/` folder.
 
 After installing, the skill **activates automatically** when you ask your agent to do
 something HelloPay-related, because its description advertises the relevant keywords
-(payins, payouts, PSE, BRE-B, payment links, webhooks, sandbox). You can also invoke
+(payins, payouts, PSE, BRE-B, Nequi, payment links, webhooks, sandbox). You can also invoke
 it explicitly by name.
 
 Example prompts:
@@ -141,7 +141,7 @@ without flooding the context.
 | File | Purpose |
 | --- | --- |
 | `SKILL.md` | Auth, environments, core concepts, quickstarts, and the endpoint catalog |
-| `references/payins.md` | PSE and BRE-B payin flows, polling, and response shapes |
+| `references/payins.md` | PSE, BRE-B, and Nequi payin flows, polling, and response shapes |
 | `references/payouts.md` | BRE-B and Transfiya payout flows and key validation |
 | `references/payment-links.md` | Hosted checkout and payment-link webhooks |
 | `references/webhooks.md` | Event payloads, retry rules, and a sample handler |

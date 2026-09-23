@@ -10,18 +10,19 @@ Use the `/payins` endpoint to create a payment request that your customer will c
 
 1. Send a `POST` request to `/payins` with the amount, customer data, selected `rail`, and method-specific details.
 2. HelloPay creates the payin and returns its initial state.
-3. For async rails, poll the payin until the source data needed to continue the flow is available.
+3. Poll the payin when a rail needs more source data, such as a PSE redirect URL.
 4. The customer completes the payment using the selected payment method.
 5. HelloPay updates the payin status asynchronously and sends webhook events.
-6. After the flow ends, the user is redirected to the `callbackUrl` you provided.
+6. Hosted flows return the payer to the `callbackUrl` you provided when applicable.
 
 ## Polling behavior
 
-For async payin rails such as `PSE` and `BRE_B`, the creation response can omit some source data until HelloPay finishes preparing the flow.
+For payin rails such as `PSE` and `BRE_B`, the creation response can omit some source data until HelloPay finishes preparing the flow.
 
 - In `PSE` payins, `sourceData.pseUrl` is returned as `null` right after creation.
 - In `BRE_B` payins, `sourceData` depends on `breb.keyType`. `SINGLE_USE` returns the generated key, and `QR_CODE` also returns `sourceData.qrString` with the QR image payload.
-- Poll the payin after creation to retrieve the updated `sourceData` values once HelloPay finishes populating them.
+- In `NEQUI` payins, `sourceData.phone` contains the payer's mobile number. There is no redirect URL or QR code to wait for.
+- For PSE and BRE-B, poll the payin after creation if the source data you need is not yet available. For Nequi, wait for a final status instead.
 - The method-specific guides include request and response examples for each async flow.
 
 ## Common fields
@@ -30,7 +31,7 @@ These fields are shared across all payin methods:
 
 - `amountInCents`: amount to collect in cents.
 - `currency`: currently `COP`.
-- `rail`: payment method to use, such as `PSE` or `BRE_B`.
+- `rail`: payment method to use: `PSE`, `BRE_B`, or `NEQUI`.
 - `reference`: your internal payment reference.
 - `inlineCustomer`: customer information used during the payment flow.
 - `callbackUrl`: URL where the payer is redirected after completing the payment.
@@ -50,6 +51,7 @@ Use one of the following values in `inlineCustomer.idType`:
 
 - [PSE payin guide](/guides/payin-pse): bank redirect flow using PSE.
 - [BREB payin guide](/guides/payin-breb): collection flow using a BREB key.
+- [Nequi payin guide](/guides/payin-nequi): collect from a payer's Nequi account using their mobile number.
 
 ## Sample payin response
 

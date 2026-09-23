@@ -2,10 +2,10 @@
 name: hellopay-payments
 description: >-
   Integrate the HelloPay payments API for Colombia (COP) — collect payments
-  (payins) and send funds (payouts) over the PSE and BRE-B rails, create hosted
-  payment links, look up BRE-B / Transfiya keys, read ledger balance and entries,
+  (payins) over PSE, BRE-B, and Nequi; send funds (payouts); create hosted
+  payment links; look up BRE-B / Transfiya keys; read ledger balance and entries;
   generate reports, and handle webhooks. Use when building or debugging a HelloPay
-  integration: creating a payin / payout / payment link, choosing PSE vs BRE-B,
+  integration: creating a payin / payout / payment link, choosing PSE, BRE-B, or Nequi,
   polling async transactions, wiring webhook events (payin.*, payout.*,
   paymentlink.*), authenticating with an X-API-Key, or testing in the HelloPay sandbox.
 license: Proprietary
@@ -56,9 +56,9 @@ These fields and rules apply across payins, payouts, and payment links:
 - **`amountInCents`** — amount in the currency's minor unit (cents). Send an integer
   ≥ 1. Responses echo both `amountInCents` and a human-readable `amount`.
 - **`currency`** — currently `COP` only.
-- **`rail`** — the payment method. Payins: `PSE`, `BRE_B`. Payouts: `BRE_B`
-  (also `TRANSFIYA`). Method-specific details go in a sibling object (`pse`, `breb`,
-  `transfiya`).
+- **`rail`** — the payment method. Payins: `PSE`, `BRE_B`, `NEQUI`. Payouts: `BRE_B`
+  (also `TRANSFIYA`). PSE, BRE-B, and Transfiya use method-specific sibling objects;
+  Nequi payins use `inlineCustomer.phone`.
 - **`reference`** — your own idempotency/correlation id; echoed back in responses
   and webhooks. Use it to match events to orders.
 - **`inlineCustomer`** — payer/receiver identity (see below).
@@ -85,7 +85,7 @@ These fields and rules apply across payins, payouts, and payment links:
 
 | Goal | Use | Reference |
 | --- | --- | --- |
-| Collect money, you build the checkout UI | `POST /payins` (`PSE` or `BRE_B`) | [references/payins.md](references/payins.md) |
+| Collect money, you build the checkout UI | `POST /payins` (`PSE`, `BRE_B`, or `NEQUI`) | [references/payins.md](references/payins.md) |
 | Collect money, HelloPay hosts the checkout | `POST /payment-links` | [references/payment-links.md](references/payment-links.md) |
 | Pay money out to a BRE-B / Transfiya account | `POST /payouts` | [references/payouts.md](references/payouts.md) |
 | Know the real outcome of any transaction | Webhooks (+ polling) | [references/webhooks.md](references/webhooks.md) |
@@ -95,9 +95,10 @@ These fields and rules apply across payins, payouts, and payment links:
 
 ### 1. Create a payin (collect a payment)
 
-Pick a `rail` and include its object. PSE redirects the payer to their bank; BRE-B
-returns a key/QR. Both are **async** — `sourceData` fills in after creation, so poll
-or wait for webhooks.
+Pick a `rail`. PSE needs a `pse` object and redirects the payer to their bank;
+BRE-B needs a `breb` object and returns a key/QR. Nequi uses `inlineCustomer.phone`
+and needs no method-specific object. Payins are asynchronous, so poll for the data
+you need and wait for a final status or webhook.
 
 ```bash
 curl --location 'https://api.stg.hellopay.com.co/payins' \
@@ -134,12 +135,13 @@ const res = await fetch("https://api.stg.hellopay.com.co/payins", {
     callbackUrl: "https://your-app.com/checkout/return",
   }),
 });
-const payin = await res.json(); // { id, status: "PROCESSING", sourceData: { pseUrl: null }, ... }
+const payin = await res.json(); // { id, status: "PENDING", sourceData: { pseUrl: null, ... }, ... }
 ```
 
-The create response returns `status: "PROCESSING"` and a partial `sourceData`
-(`pseUrl` is `null` for PSE; BRE-B returns the `keyString`/`qrString`). **Poll**
-`GET /payins/{id}` until the data you need is populated, then send the payer to it.
+The create response returns `status: "PENDING"` and rail-specific `sourceData`
+(`pseUrl` is `null` for PSE; BRE-B returns the `keyString`/`qrString`;
+Nequi returns `phone`). **Poll**
+`GET /payins/{id}` until the data you need is populated or the status is final.
 Full rail details, response shapes, and PSE bank codes are in
 [references/payins.md](references/payins.md) and
 [references/pse-banks.md](references/pse-banks.md).

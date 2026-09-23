@@ -4,7 +4,8 @@
  * Usage:
  *   const hp = new HelloPay({ apiKey: process.env.HELLOPAY_API_KEY!, env: "sandbox" });
  *   const payin = await hp.createPayin({ ... });
- *   const settled = await hp.pollPayin(payin.id, (p) => p.status !== "PROCESSING");
+ *   const settled = await hp.pollPayin(payin.id, (p) =>
+ *     ["CONFIRMED", "DECLINED", "CANCELED"].includes(p.status));
  *
  * Call this from your backend only — never expose the API key client-side.
  */
@@ -17,7 +18,7 @@ const BASE_URLS: Record<Environment, string> = {
 };
 
 export type IdType = "CO_CC" | "CO_CE" | "CO_NIT" | "MXN_RFC" | "PASSPORT";
-export type PayinRail = "PSE" | "BRE_B";
+export type PayinRail = "PSE" | "BRE_B" | "NEQUI";
 export type PayoutRail = "BRE_B" | "TRANSFIYA";
 export type TxStatus = "PENDING" | "PROCESSING" | "CONFIRMED" | "DECLINED" | "CANCELED";
 
@@ -39,6 +40,7 @@ export interface CreatePayinInput {
   pse?: { bank: string; personType: "INDIVIDUAL" | "BUSINESS" };
   /** Required when rail === "BRE_B". */
   breb?: { keyType: "SINGLE_USE" | "QR_CODE" };
+  /** For NEQUI, inlineCustomer.phone is the payer's Nequi mobile number. */
   callbackUrl?: string;
 }
 
@@ -63,7 +65,7 @@ export interface CreatePaymentLinkInput {
   reference: string;
   callbackUrl: string;
   /** Omit to allow all enabled methods; set to restrict to one rail. */
-  rail?: PayinRail;
+  rail?: "PSE" | "BRE_B";
   inlineCustomer?: InlineCustomer;
   /** Only when rail === "PSE". */
   pse?: { bank: string };
@@ -168,7 +170,7 @@ export class HelloPay {
   }
 
   /**
-   * Poll a payin until `done(tx)` returns true (e.g. status leaves PROCESSING, or
+   * Poll a payin until `done(tx)` returns true (e.g. status is terminal, or
    * sourceData.pseUrl is populated). Throws on timeout.
    */
   async pollPayin(

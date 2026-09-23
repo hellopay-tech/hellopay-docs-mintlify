@@ -2,7 +2,7 @@
 
 Validate your integration before going live. The sandbox mirrors production
 request/response shapes but **moves no real money** and does not connect to real PSE /
-BRE-B rails — it simulates the expected production behavior end to end.
+BRE-B or Nequi rails — it simulates the expected production behavior end to end.
 
 **Base URL:** `https://api.stg.hellopay.com.co`
 **Portal:** `https://portal.stg.hellopay.com.co`
@@ -37,6 +37,7 @@ finishes preparing the flow — the same simulated async behavior as production:
 - **PSE** → `sourceData.pseUrl` is `null` right after creation.
 - **BRE-B** → depends on `breb.keyType`: `SINGLE_USE` returns the generated
   `keyString`; `QR_CODE` also returns `sourceData.qrString` (base64 QR image).
+- **Nequi** → `sourceData.phone` contains the payer's mobile number; there is no redirect URL or QR.
 
 Poll `GET /payins/{id}` after creation to retrieve updated `sourceData`, or rely on
 webhooks.
@@ -54,6 +55,7 @@ webhooks.
 - Declined payin (`idNumber: 1000000003`) → assert `payin.declined`.
 - Canceled payin (`idNumber: 1000000005`) → assert `payin.canceled`.
 - BRE-B `QR_CODE` payin → assert `qrString` present after polling.
+- Nequi payin (`idNumber: 1000000001`) → assert `sourceData.phone` matches the request and receive `payin.confirmed`.
 - Confirmed BRE-B payout (`idNumber: 1000000001`) → validate key first, assert
   `payout.confirmed`.
 - Payment link → complete it and assert `paymentlink.completed`; let one expire and

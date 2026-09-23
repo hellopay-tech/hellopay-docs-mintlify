@@ -812,8 +812,9 @@ components:
           example: '1234567890'
         phone:
           type: string
-          description: Customer phone number
+          description: Customer phone number (Colombian mobile in +573XXXXXXXXX format; used for Nequi payins)
           example: '+573001234567'
+          pattern: '^\+573\d{9}$'
         email:
           type: string
           description: Customer email address
@@ -1058,6 +1059,49 @@ components:
       required:
         - bank
         - personType
+    PsePayinSourceData:
+      type: object
+      required:
+        - pseUrl
+      properties:
+        pseUrl:
+          type: string
+          nullable: true
+          description: Bank redirect URL, populated after payin initiation
+        bank:
+          type: string
+          nullable: true
+          description: Selected PSE bank code
+    BrebPayinSourceData:
+      type: object
+      required:
+        - keyType
+      properties:
+        keyType:
+          type: string
+          enum:
+            - SINGLE_USE
+            - QR_CODE
+        keyString:
+          type: string
+          nullable: true
+        qrString:
+          type: string
+          nullable: true
+          description: QR image as a data URI when keyType is QR_CODE
+        checkoutUrl:
+          type: string
+          nullable: true
+    NequiPayinSourceData:
+      type: object
+      required:
+        - phone
+      properties:
+        phone:
+          type: string
+          nullable: true
+          description: Payer's Nequi mobile number in +573XXXXXXXXX format
+          example: '+573001234567'
     CreatePayinDto:
       type: object
       properties:
@@ -1074,6 +1118,10 @@ components:
           type: string
           description: Payment rail type
           example: BRE_B
+          enum:
+            - BRE_B
+            - PSE
+            - NEQUI
         reference:
           type: string
           description: Unique reference for the payment
@@ -1177,9 +1225,11 @@ components:
           description: Payin organization ID
           example: 123e4567-e89b-12d3-a456-426614174000
         sourceData:
-          description: Payin pse response
-          allOf:
-            - $ref: '#/components/schemas/BrebDto'
+          description: Rail-specific payin data. For NEQUI, contains the payer phone number.
+          oneOf:
+            - $ref: '#/components/schemas/PsePayinSourceData'
+            - $ref: '#/components/schemas/BrebPayinSourceData'
+            - $ref: '#/components/schemas/NequiPayinSourceData'
         callbackUrl:
           type: object
           description: Payin callback URL

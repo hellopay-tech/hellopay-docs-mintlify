@@ -15,7 +15,7 @@ https://api.stg.hellopay.com.co
 
 This environment lets you test the main API endpoints for both payins and payouts using the same request structure as production.
 
-No real money moves in sandbox. HelloPay does not connect directly to real payment methods such as PSE or BRE-B in this environment. Instead, it simulates the expected production behavior so you can validate your integration end-to-end.
+No real money moves in sandbox. HelloPay does not connect directly to real payment methods such as PSE, BRE-B, or Nequi in this environment. Instead, it simulates the expected production behavior so you can validate your integration end-to-end.
 
 ## Test Document Numbers
 
@@ -43,6 +43,8 @@ For async payin rails such as `PSE` and `BRE_B`, the creation response can omit 
 
 - In `PSE` payins, `sourceData.pseUrl` is returned as `null` right after creation.
 - In `BRE_B` payins, `sourceData` depends on `breb.keyType`. `SINGLE_USE` returns the generated key, and `QR_CODE` also returns `sourceData.qrString` with the QR image payload.
+- In `NEQUI` payins, `sourceData.phone` contains the payer's mobile number. No redirect URL or QR code is generated.
+- For a Nequi sandbox payin, use `1000000001` to test confirmation and verify that `sourceData.phone` matches the submitted number.
 - Poll the transaction after creation to retrieve the updated `sourceData` values once HelloPay finishes populating them.
 - In sandbox, this update follows the same simulated async behavior as production, so you should handle it with polling or webhooks.
 

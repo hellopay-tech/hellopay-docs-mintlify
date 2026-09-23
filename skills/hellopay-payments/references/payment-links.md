@@ -35,6 +35,10 @@ payment method enabled for your account and pay.
 
 ## Choosing the flow
 
+An open link can offer Nequi when enabled for the organization. `NEQUI` cannot be
+used as the `rail` restriction on `POST /payment-links`; omit `rail` so the payer
+can select it in the hosted checkout.
+
 | Flow | Send | When |
 | --- | --- | --- |
 | Open checkout | omit optional fields | Payer chooses method & enters details |

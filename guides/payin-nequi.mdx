@@ -1,0 +1,69 @@
+---
+title: 'Create a Nequi payin'
+description: 'Collect a payment through Nequi using the payer’s Colombian mobile number.'
+icon: 'mobile-screen'
+---
+
+Use `rail: "NEQUI"` to request payment from a payer's Nequi account. HelloPay sends the payment request to the mobile number in `inlineCustomer.phone`; the payer approves it in Nequi.
+
+Review [How to create your first payin](/guides/how-to-create-first-payin) for shared fields, and configure [webhooks](/getting-started/webhooks) to receive the final result.
+
+## How the flow works
+
+1. Create the payin with `rail: "NEQUI"` and the payer's Nequi mobile number in `inlineCustomer.phone`.
+2. HelloPay creates the payin in `PENDING`, then starts the request and moves it to `PROCESSING`. The response includes `sourceData.phone` with the number used for the request.
+3. Ask the payer to check Nequi and approve the payment request. This flow has no bank redirect URL or QR code.
+4. Wait for `payin.confirmed` or `payin.declined`, or poll `GET /payins/{id}` until the status is final. An unresolved Nequi payin is checked for expiration after 15 minutes.
+
+Use the final payin status or webhook event to fulfill an order.
+
+## Request example
+
+```bash
+curl --location 'https://api.stg.hellopay.com.co/payins' \
+  --header 'Content-Type: application/json' \
+  --header 'x-api-key: YOUR_API_KEY' \
+  --data-raw '{
+    "amountInCents": 10000,
+    "currency": "COP",
+    "rail": "NEQUI",
+    "reference": "INV-2026-001",
+    "inlineCustomer": {
+      "name": "John Doe",
+      "idType": "CO_CC",
+      "idNumber": "1000000001",
+      "email": "john.doe@example.com",
+      "phone": "+573001234567"
+    }
+  }'
+```
+
+`inlineCustomer.phone` must be a Colombian mobile number in `+573XXXXXXXXX` format. It is the Nequi destination for the payment request. The `inlineCustomer` object also requires `name`, `idType`, `idNumber`, and `email`. Do not send a `nequi` object in the payin request; no method-specific object is required.
+
+## Example creation response
+
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "amount": 100,
+  "amountInCents": 10000,
+  "currency": "COP",
+  "status": "PENDING",
+  "rail": "NEQUI",
+  "reference": "INV-2026-001",
+  "inlineCustomer": {
+    "name": "John Doe",
+    "idType": "CO_CC",
+    "idNumber": "1000000001",
+    "email": "john.doe@example.com",
+    "phone": "+573001234567"
+  },
+  "sourceData": {
+    "phone": "+573001234567"
+  }
+}
+```
+
+The creation response shows that the request was queued. `sourceData.phone` identifies the mobile number; it is not a payment confirmation. If the payer approves, the payin becomes `CONFIRMED`. If Nequi rejects it or the request remains unresolved at the expiration check, the payin becomes `DECLINED`.
+
+In the [sandbox](/getting-started/sandbox), use the documented test `inlineCustomer.idNumber` values to simulate final outcomes. No real Nequi request is sent.

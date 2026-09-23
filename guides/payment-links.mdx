@@ -35,6 +35,8 @@ The `paymentLinkUrl` in the response is the full URL of the hosted payment page.
 
 The page will display the payment methods enabled for your merchant account. If you send `rail`, the payment link is restricted to that method and the payer cannot choose a different one. If you send `inlineCustomer`, HelloPay attaches that customer data to the payin created from the link.
 
+An open payment link can offer Nequi when it is enabled for your account. The `rail` restriction on `POST /payment-links` currently accepts only `PSE` or `BRE_B`; omit `rail` to let the payer choose Nequi in the hosted checkout.
+
 ## Choosing the right flow
 
 `rail` and `inlineCustomer` are optional. Include them only when they match the experience you want to build:
