@@ -1,90 +1,135 @@
 ---
-title: 'How to create your first payout'
-description: 'Understand the BREB payout flow before sending funds.'
-icon: 'file-code'
+title: "Create a Bre-B payout"
+sidebarTitle: "Bre-B payout"
+description: "Send funds to a Bre-B key: validate the key with GET /breb/keys/{keyString}, create the payout with POST /payouts, and confirm the result with a webhook."
+icon: "paper-plane"
+keywords: ["payout", "send money", "disbursement", "Bre-B", "BRE_B", "keyString", "targetData", "POST /payouts"]
 ---
 
-Use the `/payouts` endpoint to send funds to a receiver. The current payout flow is oriented to `BRE_B`.
+import { SequenceFlow } from "/snippets/flows.jsx";
 
-## General flow
+A **payout** sends money from your HelloPay balance to a receiver. This guide covers Bre-B payouts, where the receiver is identified by their Bre-B key (an alias, phone number, email, or document).
 
-1. Resolve the receiver details for the BREB key with `GET /breb/keys/{keyString}`.
-2. Send a `POST` request to `/payouts` with `rail: "BRE_B"` and the same `breb.keyString`.
-3. HelloPay creates the payout and processes it asynchronously.
-4. Track the final state through webhook events such as `payout.confirmed`, `payout.canceled`, or `payout.declined`.
+## How the payout flow works
 
-## Validate the BREB key first
+<Visibility for="humans">
+  <SequenceFlow
+    title="Bre-B payout"
+    steps={[
+      { actor: "Your server", title: "Validate the receiver's key", detail: "GET /breb/keys/{keyString}", icon: "magnifying-glass" },
+      { actor: "Your server", title: "Create the payout", detail: "POST /payouts", icon: "server" },
+      { actor: "HelloPay", title: "Debits your balance and sends the funds", detail: "PENDING → PROCESSING", icon: "paper-plane" },
+      { actor: "HelloPay", title: "Sends the final webhook", detail: "payout.confirmed", icon: "bell" },
+    ]}
+  />
+</Visibility>
 
-Use the BREB key lookup endpoint before creating the payout. This lets you confirm that the destination key exists and belongs to the intended receiver.
+1. Resolve the receiver with `GET /breb/keys/{keyString}` and check that the name and document match who you intend to pay.
+2. Send `POST /payouts` with `rail: "BRE_B"` and the same key in `breb.keyString`.
+3. HelloPay returns the payout with `status: "PENDING"` and processes it asynchronously. No webhook is sent while it is in progress.
+4. HelloPay sends `payout.confirmed`, `payout.declined`, or `payout.canceled`.
+
+<Warning>
+  Your available balance must cover the amount plus fees, or the request fails with `400`. Check it with [`GET /ledger/balance`](/api-reference/ledger/get-the-current-balance).
+</Warning>
+
+## 1. Validate the Bre-B key
 
 ```bash
-curl --location 'https://api.stg.hellopay.com.co/breb/keys/@alphamunKey01' \
---header 'x-api-key: ••••••'
+curl --request GET 'https://api.stg.hellopay.com.co/breb/keys/@alphamunKey01' \
+  --header 'X-API-Key: YOUR_API_KEY'
 ```
 
-## Request example
-
-```bash
-curl --location 'https://api.stg.hellopay.com.co/payouts' \
---header 'Content-Type: application/json' \
---header 'x-api-key: ••••••' \
---data-raw '{
-  "amountInCents": 10000,
-  "currency": "COP",
-  "rail": "BRE_B",
-  "reference": "1dwDmHerYL5NBQZ",
-  "inlineCustomer": {
+```json
+{
+  "details": {
     "name": "John Doe",
-    "idType": "CO_CC",
-    "idNumber": "1000000001",
-    "email": "john.doe@doe.com",
-    "phone": "+573137772121"
-  },
-  "breb": {
-    "keyString": "@alphamunKey01"
+    "documentType": "CC",
+    "documentNumber": "1234567890",
+    "bankAccountNumber": "1234567890",
+    "keyString": "@alphamunKey01",
+    "keyType": "ALPHANUM",
+    "bankName": "BANK TEST"
   }
-}'
+}
 ```
 
-## Request fields
+A `404` means the key does not exist. Do not create the payout.
 
-- `amountInCents`: amount to send, expressed in cents.
-- `currency`: currently `COP`.
-- `rail`: must be `BRE_B`.
-- `reference`: your internal identifier for this payout.
-- `inlineCustomer`: information for the customer associated with the payout.
-- `breb.keyString`: BREB key that identifies the destination account.
+<Tip>
+  In the sandbox, `@alphamunKey01` is a test key that resolves. Sandbox payouts do not check the key: the outcome depends only on `inlineCustomer.idNumber`. See [Sandbox](/getting-started/sandbox).
+</Tip>
 
-## Response example
+## 2. Create the payout
+
+```bash
+curl --request POST 'https://api.stg.hellopay.com.co/payouts' \
+  --header 'X-API-Key: YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "amountInCents": 100000,
+    "currency": "COP",
+    "rail": "BRE_B",
+    "reference": "OUT-2026-001",
+    "inlineCustomer": {
+      "name": "John Doe",
+      "idType": "CO_CC",
+      "idNumber": "1000000001",
+      "email": "john.doe@example.com",
+      "phone": "+573001234567"
+    },
+    "breb": {
+      "keyString": "@alphamunKey01"
+    }
+  }'
+```
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `amountInCents` | integer | Yes | Amount to send in cents. `100000` = 1,000 COP |
+| `currency` | string | Yes | `COP` |
+| `rail` | string | Yes | `BRE_B` |
+| `reference` | string | Yes | Your payout ID. Echoed in responses and webhooks |
+| `inlineCustomer` | object | Yes | The **receiver's** identity. In the sandbox, `idNumber` decides the outcome |
+| `breb.keyString` | string | Yes | The receiver's Bre-B key, as validated in step 1 |
+
+<Note>
+  `reference` is not enforced as unique. If a request times out, search with `GET /payouts?reference=OUT-2026-001` before you retry, so you never pay twice.
+</Note>
+
+## 3. Read the response
 
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
-  "amount": 10000,
+  "amount": 1000,
+  "amountInCents": 100000,
   "currency": "COP",
-  "status": "PROCESSING",
+  "status": "PENDING",
   "rail": "BRE_B",
-  "reference": "1dwDmHerYL5NBQZ",
+  "reference": "OUT-2026-001",
   "inlineCustomer": {
     "name": "John Doe",
     "idType": "CO_CC",
     "idNumber": "1000000001",
-    "email": "john.doe@doe.com",
-    "phone": "+573137772121"
+    "email": "john.doe@example.com",
+    "phone": "+573001234567"
   },
   "errorCode": null,
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z",
   "resultAt": null,
   "organizationId": "123e4567-e89b-12d3-a456-426614174000",
-  "sourceData": {
+  "targetData": {
     "keyString": "@alphamunKey01"
   }
 }
 ```
 
-## What the response means
+- `status: "PENDING"` means the payout was accepted. It is not the final result.
+- `targetData` holds the destination. HelloPay adds `bank` once processing starts.
+- Confirm the result with the `payout.confirmed`, `payout.declined`, or `payout.canceled` [webhook](/getting-started/webhooks), or poll `GET /payouts/{id}`.
 
-- `status: "PROCESSING"` means the payout was created successfully and is still in progress.
-- `sourceData.keyString` echoes the destination BREB key used for the payout.
-- The creation response is not the final outcome. Use webhooks to confirm whether the payout was confirmed, canceled, or declined.
+## Other payout rails
+
+The API also accepts `TRANSFIYA` and `NEQUI` payouts. Contact [support](mailto:support@hellopay.com.co) to enable them for your organization. Request fields are listed in the [API reference](/api-reference/payouts/create-a-new-payout).

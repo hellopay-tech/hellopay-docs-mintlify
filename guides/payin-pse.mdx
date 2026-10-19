@@ -1,169 +1,157 @@
 ---
-title: 'Create a PSE payin'
-description: 'Use PSE to collect a payin through a bank redirect flow.'
-icon: 'landmark'
+title: "Create a PSE payin"
+sidebarTitle: "PSE"
+description: "Collect a payment through PSE: create the payin, poll until sourceData.pseUrl is ready, redirect the payer to their bank, and confirm with a webhook."
+icon: "building-columns"
+keywords: ["PSE", "bank redirect", "pseUrl", "pse.bank", "personType", "bank codes", "CO_BANCOLOMBIA"]
 ---
 
-Use `rail: "PSE"` when you want the payer to authenticate the payment with a supported Colombian bank through the PSE flow.
+import { SequenceFlow } from "/snippets/flows.jsx";
+import PseBanks from "/snippets/pse-banks.mdx";
 
-Before implementing this rail:
+Use `rail: "PSE"` to let the payer authorize the payment from their Colombian bank account. The payer is redirected to their bank and then back to your `callbackUrl`.
 
-- Review [How to create your first payin](/guides/how-to-create-first-payin) for the shared request fields and lifecycle.
-- Configure [webhooks](/getting-started/webhooks) to receive the final payin outcome asynchronously.
-- Treat `callbackUrl` as the payer return URL, not as the source of truth for payment confirmation.
+Before you start, read the [Payins overview](/guides/how-to-create-first-payin) and [configure webhooks](/getting-started/webhooks).
 
 ## How the PSE flow works
 
-1. Create the payin with `rail: "PSE"` and include the selected bank in `pse.bank`.
-2. HelloPay starts the payin in `PROCESSING`.
-3. Right after creation, `sourceData.pseUrl` is `null`.
-4. Poll the payin until HelloPay updates `sourceData.pseUrl` with the redirect URL for the payer.
-5. The payer completes the authorization through the PSE bank flow.
-6. HelloPay sends webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
-7. After the payer finishes the flow, HelloPay redirects them to your `callbackUrl`.
+<Visibility for="humans">
+  <SequenceFlow
+    title="PSE payin"
+    steps={[
+      { actor: "Your server", title: "Create the payin with pse.bank", detail: "POST /payins", icon: "server" },
+      { actor: "HelloPay", title: "Returns PENDING with pseUrl: null", icon: "hourglass-half" },
+      { actor: "Your server", title: "Polls until pseUrl is set", detail: "GET /payins/{id}", icon: "arrows-rotate" },
+      { actor: "Payer", title: "Is redirected to pseUrl and authorizes at the bank", icon: "building-columns" },
+      { actor: "HelloPay", title: "Sends the final webhook", detail: "payin.confirmed", icon: "bell" },
+      { actor: "Payer", title: "Returns to your callbackUrl", icon: "arrow-right-to-bracket" },
+    ]}
+  />
+</Visibility>
 
-## Request example
+1. Create the payin with `rail: "PSE"` and the payer's bank in `pse.bank`.
+2. HelloPay returns the payin with `status: "PENDING"` and `sourceData.pseUrl: null`.
+3. Poll `GET /payins/{id}` every 1–2 seconds until `sourceData.pseUrl` is set (usually a few seconds).
+4. Redirect the payer to `sourceData.pseUrl`. They authorize the payment at their bank.
+5. HelloPay sends `payin.confirmed`, `payin.declined`, or `payin.canceled`.
+6. The payer's browser returns to your `callbackUrl`. Show a status page, but use the webhook to fulfill the order.
 
-This flow is asynchronous. After creating the payin, `sourceData.pseUrl` is initially `null`, so you must poll the transaction until the redirect URL is available.
+<Warning>
+  After 30 minutes, HelloPay checks the payin with PSE. If the payer never started the payment, it becomes `DECLINED` with `errorCode: PSE_PAYIN_EXPIRED`. If the payment is still in progress at the bank, it keeps its status until the bank answers, so always wait for the final webhook.
+</Warning>
 
-```bash
-curl --location 'https://api.stg.hellopay.com.co/payins' \
---header 'Content-Type: application/json' \
---header 'x-api-key: ••••••' \
---data-raw '{
-  "amountInCents": 10000,
-  "currency": "COP",
-  "rail": "PSE",
-  "reference": "1001122",
-  "inlineCustomer": {
-    "name": "John Doe",
-    "idType": "CO_CC",
-    "idNumber": "1000000001",
-    "email": "john.doe@doe.com",
-    "phone": "+573131111111"
-  },
-  "pse": {
-    "bank": "CO_BANCOLOMBIA",
-    "personType": "INDIVIDUAL"
-  },
-  "callbackUrl": "https://portal.hellopay.com.co"
-}'
+## Request
+
+<CodeGroup>
+```bash cURL
+curl --request POST 'https://api.stg.hellopay.com.co/payins' \
+  --header 'X-API-Key: YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "amountInCents": 100000,
+    "currency": "COP",
+    "rail": "PSE",
+    "reference": "INV-2026-001",
+    "inlineCustomer": {
+      "name": "John Doe",
+      "idType": "CO_CC",
+      "idNumber": "1000000001",
+      "email": "john.doe@example.com",
+      "phone": "+573001234567"
+    },
+    "pse": {
+      "bank": "CO_BANCOLOMBIA",
+      "personType": "INDIVIDUAL"
+    },
+    "callbackUrl": "https://your-app.com/checkout/return"
+  }'
 ```
 
-## Request fields
+```typescript TypeScript
+const res = await fetch("https://api.stg.hellopay.com.co/payins", {
+  method: "POST",
+  headers: { "X-API-Key": process.env.HELLOPAY_API_KEY!, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    amountInCents: 100000,
+    currency: "COP",
+    rail: "PSE",
+    reference: "INV-2026-001",
+    inlineCustomer: {
+      name: "John Doe",
+      idType: "CO_CC",
+      idNumber: "1000000001",
+      email: "john.doe@example.com",
+      phone: "+573001234567",
+    },
+    pse: { bank: "CO_BANCOLOMBIA", personType: "INDIVIDUAL" },
+    callbackUrl: "https://your-app.com/checkout/return",
+  }),
+});
+const payin = await res.json();
+```
+</CodeGroup>
 
-- `amountInCents`: amount to collect, expressed in cents.
-- `currency`: currently `COP`.
-- `rail`: must be `PSE`.
-- `reference`: your internal identifier for this payin.
-- `inlineCustomer`: customer information used during the payment flow. Supported document types are listed in [How to create your first payin](/guides/how-to-create-first-payin).
-- `pse.bank`: bank selected by the payer from the supported PSE bank list.
-- `pse.personType`: payer type. Supported values are `INDIVIDUAL` and `BUSINESS`.
-- `callbackUrl`: URL where the payer is redirected after leaving the PSE flow.
+### PSE fields
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `pse.bank` | Yes | The payer's bank. Use a code from [Supported banks](#supported-banks) |
+| `pse.personType` | Yes | `INDIVIDUAL` for a personal account, `BUSINESS` for a company account |
+| `callbackUrl` | Recommended | Where the payer returns after leaving PSE |
+
+The shared fields (`amountInCents`, `currency`, `reference`, `inlineCustomer`) are described in the [Payins overview](/guides/how-to-create-first-payin#request-fields).
+
+## Response
+
+<Tabs>
+  <Tab title="Create response" icon="hourglass-half">
+    ```json
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "amount": 1000,
+      "amountInCents": 100000,
+      "currency": "COP",
+      "status": "PENDING",
+      "rail": "PSE",
+      "reference": "INV-2026-001",
+      "errorCode": null,
+      "sourceData": {
+        "pseUrl": null,
+        "bank": "CO_BANCOLOMBIA"
+      },
+      "callbackUrl": "https://your-app.com/checkout/return"
+    }
+    ```
+  </Tab>
+  <Tab title="After polling" icon="arrows-rotate">
+    ```json
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "status": "PROCESSING",
+      "rail": "PSE",
+      "sourceData": {
+        "pseUrl": "https://bank-redirect.example/pse?token=...",
+        "bank": "CO_BANCOLOMBIA"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+Responses are shortened here. See the [Payins overview](/guides/how-to-create-first-payin#sample-response) for every field.
+
+- `sourceData.pseUrl` is the only value you need to redirect the payer. It is `null` until HelloPay finishes preparing the PSE flow.
+- `sourceData.bank` echoes `pse.bank`. `personType` is not returned.
 
 ## Supported banks
 
 Use one of the following values in `pse.bank`:
 
-| Code | Bank Name |
-| --- | --- |
-| `CO_ACCION_FIDUCIARIA` | Accion Fiduciaria |
-| `CO_ADDI_CF` | Addi CF |
-| `CO_ALIANZA_FIDUCIARIA` | Alianza Fiduciaria |
-| `CO_BAN100` | Ban100 |
-| `CO_BANCAMIA` | Bancamia |
-| `CO_AGRARIO` | Banco Agrario |
-| `CO_CAJA_SOCIAL` | Banco Caja Social |
-| `CO_AV_VILLAS` | Banco AV Villas |
-| `CO_COOMEVA` | Banco Coomeva |
-| `CO_COOPCENTRAL` | Banco Coopcentral |
-| `CO_COOPCENTRAL_DIGITAL` | Banco Coopcentral Digital |
-| `CO_DAVIVIENDA` | Banco Davivienda |
-| `CO_BOGOTA` | Banco de Bogota |
-| `CO_OCCIDENTE` | Banco de Occidente |
-| `CO_FALABELLA` | Banco Falabella |
-| `CO_FINANDINA` | Banco Finandina |
-| `CO_GNB_SUDAMERIS` | Banco GNB Sudameris |
-| `CO_JP_MORGAN` | Banco JP Morgan |
-| `CO_MUNDO_MUJER` | Banco Mundo Mujer |
-| `CO_PICHINCHA` | Banco Pichincha |
-| `CO_POPULAR` | Banco Popular |
-| `CO_SANTANDER` | Banco Santander |
-| `CO_SERFINANZA` | Banco Serfinanza |
-| `CO_UNION` | Banco Union |
-| `CO_BANCOLOMBIA` | Bancolombia |
-| `CO_BANKA` | Banka |
-| `CO_BBVA` | BBVA |
-| `CO_BOLD_CF` | Bold CF |
-| `CO_CITIBANK` | Citibank |
-| `CO_COINK` | Coink |
-| `CO_COLTEFINANCIERA` | Coltefinanciera |
-| `CO_CONFIAR` | Confiar |
-| `CO_COOFINEP` | Coofinep |
-| `CO_COTRAFA` | Cotrafa |
-| `CO_CFA` | CFA |
-| `CO_CREZCAMOS` | Crezcamos |
-| `CO_DALE` | Dale |
-| `CO_DAVIPLATA` | Daviplata |
-| `CO_DING` | Ding |
-| `CO_FINANCIERA_JURISCOOP` | Financiera Juriscoop |
-| `CO_GLOBAL66` | Global66 |
-| `CO_IRIS` | Iris |
-| `CO_ITAU` | Itau |
-| `CO_JFK` | JFK |
-| `CO_LULO_BANK` | Lulo Bank |
-| `CO_MOVII` | Movii |
-| `CO_NEQUI` | Nequi |
-| `CO_NU` | Nu |
-| `CO_PAYCASH` | Paycash |
-| `CO_POWWI` | Powwi |
-| `CO_RAPPIPAY` | RappiPay |
-| `CO_SANTANDER_CONSUMER` | Santander Consumer |
-| `CO_SCOTIABANK_COLPATRIA` | Scotiabank Colpatria |
-| `CO_UALA` | Uala |
-| `CO_SUPERDIGITAL` | Superdigital |
+<PseBanks />
 
-## Supported person types
-
-Use one of the following values in `pse.personType`:
+## Person types
 
 | Value | Description |
 | --- | --- |
-| `INDIVIDUAL` | Individual person paying with a personal bank account. |
-| `BUSINESS` | Company or legal entity paying with a business bank account. |
-
-## Response example
-
-```json
-{
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "amount": 10000,
-  "currency": "COP",
-  "status": "PROCESSING",
-  "rail": "PSE",
-  "reference": "1001122",
-  "inlineCustomer": {
-    "name": "John Doe",
-    "idType": "CO_CC",
-    "idNumber": "1000000001",
-    "email": "john.doe@doe.com",
-    "phone": "+573131111111"
-  },
-  "errorCode": null,
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "updatedAt": "2024-01-01T00:00:00.000Z",
-  "resultAt": null,
-  "organizationId": "123e4567-e89b-12d3-a456-426614174000",
-  "sourceData": {
-    "pseUrl": null
-  },
-  "callbackUrl": "https://portal.hellopay.com.co"
-}
-```
-
-## What the response means
-
-- `status: "PROCESSING"` means the payin was created and is waiting for the payer to complete the PSE flow.
-- `sourceData.pseUrl` is `null` in the creation response and is filled later when you poll the payin again.
-- `sourceData` also includes the PSE-specific data associated with the payin, such as the selected bank and person type.
-- The final outcome is delivered asynchronously through webhooks, so do not treat the creation response as the final payment result.
+| `INDIVIDUAL` | Person paying from a personal bank account |
+| `BUSINESS` | Company or legal entity paying from a business account |

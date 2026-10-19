@@ -45,7 +45,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/LedgerEntriesResponseDto'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Get all ledger entries
       tags:
         - Ledger
@@ -64,13 +66,21 @@ paths:
                 items:
                   $ref: '#/components/schemas/BalanceResponseDto'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Get the current balance
       tags:
         - Ledger
   /payouts:
     post:
-      description: Creates a new payment in transaction.
+      description: >-
+        Creates a payout that sends funds to a receiver. The response is the
+        initial state (`PENDING` or `PROCESSING`), not the final result: confirm
+        it with the `payout.confirmed`, `payout.declined`, or `payout.canceled`
+        webhook, or poll `GET /payouts/{id}`. For `BRE_B`, validate the
+        destination with `GET /breb/keys/{keyString}` first. Your available
+        balance must cover the amount plus fees.
       operationId: PayoutsController_createPayout
       parameters: []
       requestBody:
@@ -87,9 +97,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/PayoutResponse'
         '400':
-          description: Invalid input data
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Create a new payout
       tags:
         - Payouts
@@ -115,6 +127,20 @@ paths:
             default: 10
             example: 10
             type: number
+        - name: reference
+          required: false
+          in: query
+          description: Filter by the `reference` you sent when creating the payout
+          schema:
+            example: INV-2026-001
+            type: string
+        - name: customerIdNumber
+          required: false
+          in: query
+          description: Filter by `inlineCustomer.idNumber`
+          schema:
+            example: '1000000001'
+            type: string
       responses:
         '200':
           description: List of payouts with cursor pagination
@@ -123,7 +149,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/PayoutsResponseDto'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Get all payouts
       tags:
         - Payouts
@@ -146,9 +174,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/PayoutResponse'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Payout not found
+          $ref: '#/components/responses/NotFound'
       summary: Get a specific payout
       tags:
         - Payouts
@@ -218,7 +248,10 @@ paths:
         - Transfiya
   /breb/keys/{keyString}:
     get:
-      description: Get BreB key details by key string
+      description: >-
+        Resolves a Bre-B key to the account holder (name, document, bank,
+        account). Call it before `POST /payouts` with `rail: BRE_B` to confirm
+        the key exists and belongs to the intended receiver.
       operationId: BrebController_getKeyDetails
       parameters:
         - name: keyString
@@ -229,19 +262,26 @@ paths:
             type: string
       responses:
         '200':
-          description: BreB key details
+          description: Bre-B key details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/KeyDetailsDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
-          description: BreB key not found
-      summary: Get BreB key details
+          description: Bre-B key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      summary: Get Bre-B key details
       tags:
-        - Breb
+        - Bre-B
   /breb/keys/{keyString}/payin-status:
     get:
-      description: Get BreB intent status by key string
+      x-excluded: true
+      description: Get Bre-B intent status by key string
       operationId: BrebController_getPayinStatusForKey
       parameters:
         - name: keyString
@@ -255,12 +295,17 @@ paths:
           description: BreB intent status
         '404':
           description: BreB key not found
-      summary: Get BreB intent status
+      summary: Get Bre-B intent status
       tags:
-        - Breb
+        - Bre-B
   /payins:
     post:
-      description: Creates a new payin request.
+      description: >-
+        Creates a payin (a request to collect money from a payer). The payin
+        starts in `PENDING`; rail-specific `sourceData` (PSE `pseUrl`, Bre-B
+        `keyString`/`qrString`) is filled asynchronously, so poll
+        `GET /payins/{id}` until the field you need is non-null. Confirm the
+        final result with `payin.*` webhooks or polling.
       operationId: PayinsController_createPayin
       parameters: []
       requestBody:
@@ -277,9 +322,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/PayinResponse'
         '400':
-          description: Invalid input data
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Create a new payin
       tags:
         - Payins
@@ -305,6 +352,20 @@ paths:
             default: 10
             example: 10
             type: number
+        - name: reference
+          required: false
+          in: query
+          description: Filter by the `reference` you sent when creating the payin
+          schema:
+            example: INV-2026-001
+            type: string
+        - name: customerIdNumber
+          required: false
+          in: query
+          description: Filter by `inlineCustomer.idNumber`
+          schema:
+            example: '1000000001'
+            type: string
       responses:
         '200':
           description: List of payins with cursor pagination
@@ -313,12 +374,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/PayinsResponseDto'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Get all payins
       tags:
         - Payins
   /payins/sync:
     post:
+      x-excluded: true
       description: Creates a new payin and initiates it synchronously
       operationId: PayinsController_createSyncPayin
       parameters: []
@@ -336,15 +400,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/PayinResponse'
         '400':
-          description: Invalid input data or unsupported rail
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Create a sync payin
       tags:
         - Payins
   /payins/{id}:
     get:
-      description: Retrieves a single payin by ID.
+      description: >-
+        Retrieves a single payin by ID. Use it to poll for async `sourceData`
+        (for example, the PSE `pseUrl`) and for the final `status`.
       operationId: PayinsController_getPayin
       parameters:
         - name: id
@@ -361,14 +429,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/PayinResponse'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Payin not found
+          $ref: '#/components/responses/NotFound'
       summary: Get a specific payin
       tags:
         - Payins
   /pse/process:
     post:
+      x-excluded: true
       operationId: PseController_processPsePayin
       parameters: []
       requestBody:
@@ -384,6 +455,7 @@ paths:
         - Pse
   /payment-wizards:
     post:
+      x-excluded: true
       description: Creates a new payment wizard.
       operationId: PaymentWizardsController_createPaymentWizard
       parameters: []
@@ -401,9 +473,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaymentWizardCreationResponse'
         '400':
-          description: Invalid input data
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Create a new payment wizard
       tags:
         - PaymentWizards
@@ -467,17 +541,21 @@ paths:
         '200':
           description: Payment wizards successfully retrieved
         '400':
-          description: Invalid input data
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Get payment wizards by organization ID with pagination
+      x-excluded: true
       tags:
         - PaymentWizards
   /payment-links:
     post:
       description: >-
-        Creates a new payment link that can be shared with customers to collect
-        payments.
+        Creates a HelloPay-hosted checkout page. Redirect the payer to
+        `paymentLinkUrl`. Links expire after 1 hour. Confirm payment with the
+        `paymentlink.completed` webhook.
       operationId: PaymentLinksController_createPaymentLink
       parameters: []
       requestBody:
@@ -494,9 +572,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaymentLinkResponse'
         '400':
-          description: Invalid input data
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Create a new payment link
       tags:
         - PaymentLinks
@@ -518,9 +598,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaymentLinkResponse'
         '400':
-          description: Invalid input data
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Get a payment link by ID
       tags:
         - PaymentLinks
@@ -545,9 +627,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReportResponseDto'
         '400':
-          description: Invalid input data
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: Create a report
       tags:
         - Reports
@@ -615,7 +699,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReportsPaginatedResponseDto'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
       summary: List reports
       tags:
         - Reports
@@ -637,21 +723,114 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReportResponseDto'
         '401':
-          description: Unauthorized
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Report not found
+          $ref: '#/components/responses/NotFound'
       summary: Get a report
       tags:
         - Reports
 info:
   title: HelloPay API
-  description: HelloPay Backend API Documentation
+  description: >-
+    REST API to collect payments (payins over PSE, Bre-B, and Nequi), send funds
+    (payouts), create hosted payment links, and read the ledger in Colombia
+    (COP). Every request authenticates with an API key in the `X-API-Key`
+    header. Money moves asynchronously: a create response is the initial state,
+    never the final result. Confirm outcomes with webhooks or by polling.
   version: '1.0'
-  contact: {}
+  contact:
+    name: HelloPay Support
+    email: support@hellopay.com.co
+    url: https://docs.hellopay.com.co
 tags: []
-servers: []
+servers:
+  - url: https://api.stg.hellopay.com.co
+    description: Sandbox (staging). No real money moves.
+  - url: https://api.hellopay.com.co
+    description: Production
+security:
+  - ApiKeyAuth: []
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: >-
+        API key created in the HelloPay portal under Settings → API Keys. Use a
+        sandbox key with the sandbox server and a production key with the
+        production server.
+  responses:
+    BadRequest:
+      description: >-
+        Invalid input. Validation errors return `message` as an array of
+        strings; business-rule errors return it as a single string.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 400
+            message:
+              - inlineCustomer.phone must start with +573 and be followed by 9 digits
+            error: Bad Request
+    Unauthorized:
+      description: >-
+        Missing `X-API-Key` header (`message: Unauthorized`), or an invalid or
+        revoked key (`message: Invalid API key`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 401
+            message: Invalid API key
+            error: Unauthorized
+    Forbidden:
+      description: >-
+        The request came from an IP address that is not in your organization's
+        IP allowlist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 403
+            message: Forbidden
+    NotFound:
+      description: The resource does not exist or does not belong to your organization.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 404
+            message: Payin with id 123e4567-e89b-12d3-a456-426614174000 not found
+            error: Not Found
   schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          description: HTTP status code
+          example: 400
+        message:
+          description: Human-readable error, or a list of validation errors
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        error:
+          type: string
+          description: HTTP status name (absent on some 401/403 responses)
+          example: Bad Request
+      required:
+        - statusCode
+        - message
     LedgerEntryResponse:
       type: object
       properties:
@@ -776,6 +955,33 @@ components:
           type: number
           description: The unsettled amount
           example: 1000
+        balanceByMethod:
+          type: array
+          description: >-
+            Available and unsettled balances by payment method, in pesos. They
+            add up to the wallet balances. Every method with balance is listed,
+            even at zero, and a method may be negative.
+          items:
+            type: object
+            properties:
+              method:
+                type: string
+                enum:
+                  - PSE
+                  - BRE_B
+                  - NEQUI
+                  - TRANSFIYA
+              availableBalance:
+                type: number
+              unsettledBalance:
+                type: number
+          example:
+            - method: BRE_B
+              availableBalance: 10000
+              unsettledBalance: 0
+            - method: NEQUI
+              availableBalance: -5000
+              unsettledBalance: 20000
         currency:
           type: string
           description: The currency
@@ -791,10 +997,13 @@ components:
         - currency
     CustomerDataDto:
       type: object
+      description: >-
+        Identity of the payer (payins) or the receiver (payouts). All fields are
+        required. In the sandbox, `idNumber` drives the final outcome.
       properties:
         name:
           type: string
-          description: Customer full name
+          description: Full name
           example: John Doe
         idType:
           type: string
@@ -808,16 +1017,22 @@ components:
           example: CO_CC
         idNumber:
           type: string
-          description: Identification document number
-          example: '1234567890'
+          description: >-
+            Identification document number. In the sandbox, `1000000001`
+            confirms, `1000000003` declines, `1000000005` cancels, and any other
+            value confirms.
+          example: '1000000001'
         phone:
           type: string
-          description: Customer phone number (Colombian mobile in +573XXXXXXXXX format; used for Nequi payins)
+          description: >-
+            Colombian mobile number in `+573XXXXXXXXX` format. For Nequi payins
+            it is the Nequi account that receives the payment request.
           example: '+573001234567'
           pattern: '^\+573\d{9}$'
         email:
           type: string
-          description: Customer email address
+          format: email
+          description: Email address
           example: john.doe@example.com
       required:
         - name
@@ -827,19 +1042,48 @@ components:
         - email
     BrebDto:
       type: object
+      description: Destination Bre-B key for a payout
       properties:
         keyString:
           type: string
-          description: BREB payment key string
-          example: breb-key-string
+          description: >-
+            Bre-B key of the receiver (for example `@alias`, a phone number, or
+            a document). Validate it first with `GET /breb/keys/{keyString}`.
+          example: '@alphamunKey01'
       required:
         - keyString
+    BrebPayinDto:
+      type: object
+      description: Bre-B options for a payin
+      properties:
+        keyType:
+          type: string
+          description: >-
+            `SINGLE_USE` generates a one-time Bre-B key for the payer.
+            `QR_CODE` also returns a QR image in `sourceData.qrString`.
+          enum:
+            - SINGLE_USE
+            - QR_CODE
+          example: QR_CODE
+      required:
+        - keyType
+    NequiPayoutDto:
+      type: object
+      description: Destination Nequi account for a payout
+      properties:
+        phone:
+          type: string
+          description: Receiver's Nequi mobile number in `+573XXXXXXXXX` format
+          example: '+573001234567'
+          pattern: '^\+573\d{9}$'
+      required:
+        - phone
     TransfiyaAccountDto:
       type: object
       properties:
         bank:
           type: string
-          description: Bank code (it should be supported by Transfiya)
+          description: Bank code (it must be supported by Transfiya)
           example: CO_BANCOLOMBIA
         bankAccountNumber:
           type: string
@@ -847,7 +1091,7 @@ components:
           example: '1234567890'
         customerDocumentNumber:
           type: string
-          description: Customer document number
+          description: Account holder's document number
           example: '1234567890'
       required:
         - bank
@@ -855,119 +1099,154 @@ components:
         - customerDocumentNumber
     TransfiyaDto:
       type: object
+      description: Send exactly one of `keyString` or `account`.
       properties:
         keyString:
           type: string
-          description: Transfiya payment key string
-          example: transfiya-key-string
+          description: Transfiya key of the receiver
+          example: '3001234567'
         account:
-          description: Transfiya account details
-          example: transfiya-key-string
+          description: Bank account of the receiver
           allOf:
             - $ref: '#/components/schemas/TransfiyaAccountDto'
-      required:
-        - keyString
-        - account
     CreatePayoutDto:
       type: object
       properties:
         amountInCents:
-          type: number
-          description: Payment amount in cents
+          type: integer
+          description: >-
+            Amount to send in cents (COP minor units). `100000` = 1,000 COP.
+            Your available balance must cover the amount plus fees.
           example: 100000
           minimum: 1
         currency:
           type: string
-          description: Payment currency
+          description: Currency. Only `COP` is supported.
+          enum:
+            - COP
           example: COP
         rail:
           type: string
-          description: Payment rail type
-          example: TRANSFIYA
+          description: >-
+            Payout rail. `BRE_B` is the rail covered in the guides. `TRANSFIYA`
+            and `NEQUI` are also accepted; contact support before using them.
+          enum:
+            - BRE_B
+            - TRANSFIYA
+            - NEQUI
+          example: BRE_B
         reference:
           type: string
-          description: Unique reference for the payout
-          example: OUT-2024-001
+          description: >-
+            Your internal identifier, echoed in responses and webhooks. HelloPay
+            does not enforce uniqueness: before retrying a failed request, look
+            it up with `GET /payouts?reference=...` to avoid duplicates.
+          example: OUT-2026-001
         inlineCustomer:
-          description: Customer data
+          description: Receiver identity
           allOf:
             - $ref: '#/components/schemas/CustomerDataDto'
         breb:
-          description: Bre-B key details (required when type is BRE_B)
+          description: Required when `rail` is `BRE_B`
           allOf:
             - $ref: '#/components/schemas/BrebDto'
         transfiya:
-          description: Transfiya key details (required when type is TRANSFIYA)
+          description: Required when `rail` is `TRANSFIYA`
           allOf:
             - $ref: '#/components/schemas/TransfiyaDto'
+        nequi:
+          description: Required when `rail` is `NEQUI`
+          allOf:
+            - $ref: '#/components/schemas/NequiPayoutDto'
       required:
         - amountInCents
         - currency
         - rail
         - reference
+        - inlineCustomer
     PayoutResponse:
       type: object
       properties:
         id:
           type: string
+          format: uuid
           description: Payout ID
           example: 123e4567-e89b-12d3-a456-426614174000
         amount:
           type: number
-          description: Payout amount
-          example: 100000
+          description: Amount in pesos (`amountInCents / 100`)
+          example: 1000
         amountInCents:
-          type: number
-          description: Payout amount in cents
-          example: 10000000
+          type: integer
+          description: Amount in cents
+          example: 100000
         currency:
           type: string
-          description: Payout currency
+          description: Currency
           example: COP
         status:
           type: string
-          description: Payout status
-          example: PENDING
+          description: >-
+            `PENDING` and `PROCESSING` are in progress. `CONFIRMED`,
+            `DECLINED`, and `CANCELED` are final.
+          enum:
+            - PENDING
+            - PROCESSING
+            - CONFIRMED
+            - DECLINED
+            - CANCELED
+          example: PROCESSING
         rail:
           type: string
           description: Payout rail
+          enum:
+            - BRE_B
+            - TRANSFIYA
+            - NEQUI
           example: BRE_B
         reference:
-          type: object
-          description: Payout reference
-          example: OUT-2024-001
+          type: string
+          nullable: true
+          description: Your reference
+          example: OUT-2026-001
         inlineCustomer:
-          description: Payout inline customer
+          description: Receiver identity
           allOf:
             - $ref: '#/components/schemas/CustomerDataDto'
         errorCode:
-          type: object
-          description: Payout error code
+          type: string
+          nullable: true
+          description: >-
+            Failure reason when the payout is declined, for example
+            `BRE_B_KEY_NOT_FOUND`. Usually `null` for canceled payouts
           example: null
         createdAt:
           format: date-time
           type: string
-          description: Payout created at
-          example: '2024-01-01T00:00:00.000Z'
+          example: '2026-01-01T00:00:00.000Z'
         updatedAt:
           format: date-time
           type: string
-          description: Payout updated at
-          example: '2024-01-01T00:00:00.000Z'
+          example: '2026-01-01T00:00:00.000Z'
         resultAt:
-          type: object
-          description: Payout result at
-          example: '2024-01-01T00:00:00.000Z'
+          type: string
+          format: date-time
+          nullable: true
+          description: When the payout reached a final status
+          example: null
         organizationId:
           type: string
-          description: Payout organization ID
+          format: uuid
           example: 123e4567-e89b-12d3-a456-426614174000
         targetData:
           type: object
-          description: Payout target data
+          description: >-
+            Destination details for the rail, for example `{ "keyString":
+            "@alphamunKey01" }` for `BRE_B` (a `bank` field is added once
+            processing starts) or `{ "phone": "+573001234567" }` for `NEQUI`.
+          additionalProperties: true
           example:
-            breb:
-              keyString: '@ABCED1223'
+            keyString: '@alphamunKey01'
       required:
         - id
         - amount
@@ -999,32 +1278,32 @@ components:
       properties:
         name:
           type: string
-          description: The name of the BreB key
+          description: Account holder name
           example: John Doe
         documentType:
           type: string
-          description: The document type of the BreB key
+          description: Account holder document type
           example: CC
         documentNumber:
           type: string
-          description: The document number of the BreB key
+          description: Account holder document number
           example: '1234567890'
         bankAccountNumber:
           type: string
-          description: The bank account number of the BreB key
+          description: Bank account linked to the key
           example: '1234567890'
         keyString:
           type: string
-          description: The key string of the BreB key
-          example: '3135556666'
+          description: The Bre-B key
+          example: '@alphamunKey01'
         keyType:
           type: string
-          description: The key type of the BreB key
-          example: PHONE
+          description: Kind of Bre-B key (for example `ALPHANUM`, `PHONE`)
+          example: ALPHANUM
         bankName:
           type: string
-          description: The bank name of the BreB key
-          example: Bancolombia
+          description: Bank that holds the account
+          example: BANK TEST
       required:
         - name
         - documentType
@@ -1037,7 +1316,7 @@ components:
       type: object
       properties:
         details:
-          description: The details of the BreB key
+          description: Details of the Bre-B key
           allOf:
             - $ref: '#/components/schemas/KeyDetails'
       required:
@@ -1047,11 +1326,13 @@ components:
       properties:
         bank:
           type: string
-          description: PSE bank
+          description: >-
+            PSE bank code chosen by the payer, for example `CO_BANCOLOMBIA`. See
+            the supported list in the PSE payin guide.
           example: CO_BANCOLOMBIA
         personType:
           type: string
-          description: PSE person type
+          description: '`INDIVIDUAL` for a personal account, `BUSINESS` for a company account'
           enum:
             - INDIVIDUAL
             - BUSINESS
@@ -1061,19 +1342,23 @@ components:
         - personType
     PsePayinSourceData:
       type: object
+      title: PSE
       required:
         - pseUrl
       properties:
         pseUrl:
           type: string
           nullable: true
-          description: Bank redirect URL, populated after payin initiation
+          description: >-
+            Redirect URL for the payer. It is `null` in the create response;
+            poll `GET /payins/{id}` until it is set, then redirect the payer.
         bank:
           type: string
           nullable: true
           description: Selected PSE bank code
     BrebPayinSourceData:
       type: object
+      title: Bre-B
       required:
         - keyType
       properties:
@@ -1085,15 +1370,24 @@ components:
         keyString:
           type: string
           nullable: true
+          description: >-
+            Generated Bre-B key the payer sends money to. It is `null` while the
+            payin is `PENDING`; poll until it is set.
+          example: '@SANDBOX5AF43BE4F5'
         qrString:
           type: string
           nullable: true
-          description: QR image as a data URI when keyType is QR_CODE
+          description: >-
+            QR image as a `data:image/png;base64,...` URI (only for `QR_CODE`).
+            Filled asynchronously and cleared once the payin reaches a final
+            status.
         checkoutUrl:
           type: string
           nullable: true
+          description: HelloPay-hosted page that shows the key or QR to the payer
     NequiPayinSourceData:
       type: object
+      title: Nequi
       required:
         - phone
       properties:
@@ -1106,134 +1400,179 @@ components:
       type: object
       properties:
         amountInCents:
-          type: number
-          description: Payment amount in cents
+          type: integer
+          description: Amount to collect in cents (COP minor units). `100000` = 1,000 COP.
           example: 100000
           minimum: 1
         currency:
           type: string
-          description: Payment currency
+          description: Currency. Only `COP` is supported.
+          enum:
+            - COP
           example: COP
         rail:
           type: string
-          description: Payment rail type
-          example: BRE_B
+          description: >-
+            Payment method. `PSE` requires the `pse` object, `BRE_B` requires
+            the `breb` object, and `NEQUI` uses `inlineCustomer.phone` (do not
+            send a `nequi` object). The rail must be enabled for your
+            organization.
+          example: PSE
           enum:
-            - BRE_B
             - PSE
+            - BRE_B
             - NEQUI
         reference:
           type: string
-          description: Unique reference for the payment
-          example: INV-2024-001
+          description: >-
+            Your internal identifier, echoed in responses and webhooks. HelloPay
+            does not enforce uniqueness: before retrying a failed request, look
+            it up with `GET /payins?reference=...` to avoid duplicates.
+          example: INV-2026-001
         inlineCustomer:
-          description: Customer data
+          description: Payer identity
           allOf:
             - $ref: '#/components/schemas/CustomerDataDto'
         pse:
-          description: PSE payment details (required when type is PSE)
+          description: Required when `rail` is `PSE`
           allOf:
             - $ref: '#/components/schemas/PseDto'
         breb:
-          description: BREB payment details (required when type is BRE_B)
+          description: Required when `rail` is `BRE_B`
           allOf:
-            - $ref: '#/components/schemas/BrebDto'
+            - $ref: '#/components/schemas/BrebPayinDto'
         callbackUrl:
           type: string
-          description: Callback URL
-          example: https://example.com/callback
+          format: uri
+          description: >-
+            Where the payer's browser returns after a hosted flow (PSE, Bre-B
+            checkout). It is a return URL only, not proof of payment.
+          example: https://your-app.com/checkout/return
       required:
         - amountInCents
         - currency
         - rail
         - reference
+        - inlineCustomer
     PayinResponse:
       type: object
       properties:
         id:
           type: string
+          format: uuid
           description: Payin ID
           example: 123e4567-e89b-12d3-a456-426614174000
         amount:
           type: number
-          description: Payin amount
-          example: 100000
+          description: Amount in pesos (`amountInCents / 100`)
+          example: 1000
         amountInCents:
-          type: number
-          description: Payin amount in cents
-          example: 10000000
-        confirmedAmount:
-          type: object
-          description: Payin confirmed amount
+          type: integer
+          description: Amount in cents
           example: 100000
+        confirmedAmount:
+          type: number
+          nullable: true
+          description: Amount actually received, in pesos. `null` until confirmed.
+          example: null
         confirmedAmountInCents:
-          type: object
-          description: Payin confirmed amount in cents
-          example: 10000000
+          type: integer
+          nullable: true
+          description: Amount actually received, in cents. `null` until confirmed.
+          example: null
         currency:
           type: string
-          description: Payin currency
+          description: Currency
           example: COP
         status:
           type: string
-          description: Payin status
+          description: >-
+            `PENDING` and `PROCESSING` are in progress. `CONFIRMED`,
+            `DECLINED`, and `CANCELED` are final.
+          enum:
+            - PENDING
+            - PROCESSING
+            - CONFIRMED
+            - DECLINED
+            - CANCELED
           example: PENDING
         settlementStatus:
-          type: object
-          description: Payin settlement status
-          example: PENDING_SETTLEMENT
+          type: string
+          nullable: true
+          description: >-
+            Whether the confirmed funds are settled in your balance. `null`
+            until the payin is confirmed
+          enum:
+            - PENDING_SETTLEMENT
+            - SETTLED
+            - null
+          example: null
         rail:
           type: string
-          description: Payin rail
-          example: BRE_B
+          description: Payment method
+          enum:
+            - PSE
+            - BRE_B
+            - NEQUI
+          example: PSE
         reference:
           type: string
-          description: Payin reference
-          example: INV-2024-001
+          description: Your reference
+          example: INV-2026-001
         paymentLinkId:
-          type: object
-          description: Payin payment link ID
-          example: 123e4567-e89b-12d3-a456-426614174000
+          type: string
+          nullable: true
+          description: ID of the payment link that created this payin, if any
+          example: null
         inlineCustomer:
-          type: object
-          description: Payin inline customer
-          example: John Doe
+          description: Payer identity
+          allOf:
+            - $ref: '#/components/schemas/CustomerDataDto'
         errorCode:
-          type: object
-          description: Payin error code
+          type: string
+          nullable: true
+          description: >-
+            Failure reason when the payin is declined, for example
+            `PSE_PAYIN_EXPIRED` or `VENDOR_REJECTED`. Usually `null` for
+            canceled payins
           example: null
         createdAt:
           format: date-time
           type: string
-          description: Payin created at
-          example: '2024-01-01T00:00:00.000Z'
+          example: '2026-01-01T00:00:00.000Z'
         updatedAt:
           format: date-time
           type: string
-          description: Payin updated at
-          example: '2024-01-01T00:00:00.000Z'
+          example: '2026-01-01T00:00:00.000Z'
         resultAt:
-          type: object
-          description: Payin result at
-          example: '2024-01-01T00:00:00.000Z'
+          type: string
+          format: date-time
+          nullable: true
+          description: When the payin reached a final status
+          example: null
         chargebackAt:
-          type: object
-          description: Payin chargeback at
-          example: '2024-01-01T00:00:00.000Z'
+          type: string
+          format: date-time
+          nullable: true
+          description: When the payin was charged back, if ever
+          example: null
         organizationId:
           type: string
-          description: Payin organization ID
+          format: uuid
           example: 123e4567-e89b-12d3-a456-426614174000
         sourceData:
-          description: Rail-specific payin data. For NEQUI, contains the payer phone number.
+          description: >-
+            Rail-specific data. Its shape depends on `rail`; some fields are
+            filled asynchronously after creation.
           oneOf:
             - $ref: '#/components/schemas/PsePayinSourceData'
             - $ref: '#/components/schemas/BrebPayinSourceData'
             - $ref: '#/components/schemas/NequiPayinSourceData'
         callbackUrl:
-          type: object
-          description: Payin callback URL
-          example: https://example.com/callback
+          type: string
+          nullable: true
+          description: Return URL you sent
+          example: https://your-app.com/checkout/return
       required:
         - id
         - amount
@@ -1311,38 +1650,46 @@ components:
       properties:
         amountType:
           type: string
-          description: Amount type for the payment link. Only FIXED is currently supported
+          description: How the amount is charged. Only `FIXED` (exactly `amountInCents`) is supported.
+          enum:
+            - FIXED
           example: FIXED
         reference:
           type: string
-          description: Unique reference for the payment link
-          example: INV-2024-001
+          description: >-
+            Your internal reference, echoed in `paymentlink.*` webhooks. Not
+            enforced as unique.
+          example: INV-2026-001
         amountInCents:
-          type: number
-          description: Fixed amount in cents for the payment link
+          type: integer
+          description: Amount to collect in cents. Minimum `100` (1 COP).
           example: 100000
-          minimum: 1
+          minimum: 100
         callbackUrl:
           type: string
+          format: uri
           description: >-
-            Callback URL that will be attached to payins created from this
-            payment link
-          example: https://example.com/callback
+            Where the payer's browser returns when the hosted flow ends,
+            whether or not the payment succeeded. Not proof of payment.
+          example: https://your-app.com/checkout/return
         rail:
           type: string
-          description: Payment rail. Restricts which rail the customer must use.
+          description: >-
+            Restricts the link to one payment method. Omit it to let the payer
+            choose any method enabled for your account (including Nequi, which
+            cannot be set here).
           example: PSE
           enum:
             - BRE_B
             - PSE
         inlineCustomer:
           description: >-
-            Pre-established customer data attached to payins created from this
-            link
+            Payer data to pre-fill. If omitted, the payer enters it in the
+            hosted checkout.
           allOf:
             - $ref: '#/components/schemas/CustomerDataDto'
         pse:
-          description: PSE payment details attached to this payment link when rail is PSE
+          description: Only send when `rail` is `PSE`. Preselects the payer's bank.
           allOf:
             - $ref: '#/components/schemas/PaymentLinkPseDto'
       required:
@@ -1359,9 +1706,7 @@ components:
           example: ad78347a-9fd5-40b3-9e18-d89a0fe9989d
         paymentLinkUrl:
           type: string
-          description: >-
-            URL to share with the customer to complete the payment using the
-            payment link
+          description: Hosted checkout URL. Redirect the payer here.
           example: >-
             https://pay.hellopay.com.co/link/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         createdAt:
@@ -1372,25 +1717,29 @@ components:
         expiresAt:
           format: date-time
           type: string
-          description: Expiration timestamp
-          example: '2024-01-02T00:00:00.000Z'
+          description: When the link expires (1 hour after creation)
+          example: '2024-01-01T01:00:00.000Z'
         status:
           type: string
           description: Payment link status
+          enum:
+            - PENDING
+            - COMPLETED
+            - EXPIRED
           example: PENDING
         inlineCustomer:
-          type: object
-          description: Payment link customer data
-          example:
-            name: John Doe
-            email: john.doe@example.com
-            phone: '+1234567890'
-            idType: CO_CC
-            idNumber: '1234567890'
+          description: Pre-filled payer data, or `null`
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CustomerDataDto'
         rail:
-          type: object
-          description: Payment link rail
-          example: BRE_B
+          type: string
+          nullable: true
+          description: Rail restriction, or `null` for an open checkout
+          enum:
+            - BRE_B
+            - PSE
+          example: PSE
       required:
         - paymentLinkId
         - paymentLinkUrl
@@ -1423,8 +1772,11 @@ components:
             - MOVEMENTS
             - PAYINS
             - PAYOUTS
+            - SETTLEMENTS
         inputCriteria:
-          description: Input criteria for the report (e.g. createdAt date range)
+          description: >-
+            createdAt date range. `createdAtFrom` must be on or before
+            `createdAtTo` and the range can be at most 31 days.
           allOf:
             - $ref: '#/components/schemas/ReportInputCriteriaDto'
       required:

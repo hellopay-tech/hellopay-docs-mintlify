@@ -1,132 +1,106 @@
 ---
 name: hellopay-payments
 description: >-
-  Integrate the HelloPay payments API for Colombia (COP) — collect payments
-  (payins) over PSE, BRE-B, and Nequi; send funds (payouts); create hosted
-  payment links; look up BRE-B / Transfiya keys; read ledger balance and entries;
-  generate reports, and handle webhooks. Use when building or debugging a HelloPay
-  integration: creating a payin / payout / payment link, choosing PSE, BRE-B, or Nequi,
-  polling async transactions, wiring webhook events (payin.*, payout.*,
-  paymentlink.*), authenticating with an X-API-Key, or testing in the HelloPay sandbox.
+  Integrate the HelloPay payments API for Colombia (COP): collect payments
+  (payins) over PSE, Bre-B, and Nequi; send Bre-B payouts; create hosted
+  payment links; validate Bre-B keys; read ledger balance and entries; generate
+  reports; and handle webhooks. Use when building or debugging a HelloPay
+  integration: creating a payin, payout, or payment link, choosing PSE, Bre-B,
+  or Nequi, polling async transactions, wiring webhook events (payin.*,
+  payout.*, paymentlink.*), authenticating with X-API-Key, handling errors, or
+  testing in the HelloPay sandbox.
 license: Proprietary
 metadata:
-  source: HelloPay API Documentation
+  source: https://docs.hellopay.com.co
   api-version: "1.0"
   vendor: HelloPay
 ---
 
 # HelloPay Payments Integration
 
-HelloPay is a payin and payout platform for Colombia (with Latam expansion planned).
-Use this skill to integrate money movement: **collect** payments (payins),
-**send** payments (payouts), generate **hosted payment links**, and reconcile via
-the **ledger**, **reports**, and **webhooks**.
+HelloPay is a payin and payout platform for Colombia (more of Latin America is
+planned). Use this skill to **collect** payments (payins), **send** payments
+(payouts), generate **hosted payment links**, and reconcile through the
+**ledger**, **reports**, and **webhooks**.
 
-The API is REST + JSON. Money moves **asynchronously**: the create response is the
-*initial* state, never the final outcome. Always confirm results through **webhooks**
-(preferred) or by **polling** the transaction.
+The API is REST + JSON. Money moves **asynchronously**: the create response is
+the *initial* state (`PENDING`), never the final result. Always confirm results
+through **webhooks** (preferred) or by **polling**.
 
-## Environments & base URLs
+## Non-negotiable rules
+
+1. Authenticate with the **`X-API-Key`** header. Never `Authorization: Bearer`.
+2. Build against the **sandbox** first: `https://api.stg.hellopay.com.co`.
+3. Send **`amountInCents`** as an integer (`100000` = 1,000 COP). Responses and
+   webhooks return `amount` in **pesos** (`amountInCents / 100`).
+4. Never fulfill an order from the create response or the `callbackUrl`
+   redirect. Only from a final status (`CONFIRMED`) or `paymentlink.completed`.
+5. `reference` is **not unique** and there is **no idempotency key**. Before
+   retrying a create that timed out, search `GET /payins?reference=...` or
+   `GET /payouts?reference=...`.
+6. The API **rejects unknown fields** (`400`). Send only documented fields; for
+   example, never send a `nequi` object on a payin.
+7. Call HelloPay from the backend only. Keep the key in `HELLOPAY_API_KEY`.
+
+## Environments and base URLs
 
 | Environment | API base URL | Portal |
 | --- | --- | --- |
 | Sandbox / staging | `https://api.stg.hellopay.com.co` | `https://portal.stg.hellopay.com.co` |
 | Production | `https://api.hellopay.com.co` | `https://portal.hellopay.com.co` |
 
-The **sandbox** mirrors production request/response shapes but moves no real money —
-use it to validate end to end. See [references/sandbox.md](references/sandbox.md).
-
-## Authentication
-
-Every request authenticates with an API key in the **`X-API-Key`** header. Create
-keys in the portal under **Settings → API Keys** (the secret is shown only once).
-
-```bash
-curl --location 'https://api.stg.hellopay.com.co/payins' \
-  --header 'x-api-key: YOUR_API_KEY'
-```
-
-A missing or invalid key returns **401 Unauthorized**. Never expose the key in
-client-side code; call HelloPay from your backend.
+Keys are per environment. Create them in the portal under **Settings → API
+Keys** (shown only once). `401` = missing or invalid key. `403` = the request IP
+is not in the organization's IP allowlist.
 
 ## Core concepts
 
-These fields and rules apply across payins, payouts, and payment links:
-
-- **`amountInCents`** — amount in the currency's minor unit (cents). Send an integer
-  ≥ 1. Responses echo both `amountInCents` and a human-readable `amount`.
-- **`currency`** — currently `COP` only.
-- **`rail`** — the payment method. Payins: `PSE`, `BRE_B`, `NEQUI`. Payouts: `BRE_B`
-  (also `TRANSFIYA`). PSE, BRE-B, and Transfiya use method-specific sibling objects;
-  Nequi payins use `inlineCustomer.phone`.
-- **`reference`** — your own idempotency/correlation id; echoed back in responses
-  and webhooks. Use it to match events to orders.
-- **`inlineCustomer`** — payer/receiver identity (see below).
-- **`callbackUrl`** — browser redirect target after a hosted flow ends. It is a
-  *return* URL, **not** proof of payment — rely on webhooks for the real result.
-- **`status`** — lifecycle: `PENDING`/`PROCESSING` → `CONFIRMED` | `DECLINED` | `CANCELED`.
-
-### `inlineCustomer`
-
-```json
-{
-  "name": "John Doe",
-  "idType": "CO_CC",
-  "idNumber": "1000000001",
-  "phone": "+573001234567",
-  "email": "john.doe@example.com"
-}
-```
-
-`idType` ∈ `CO_CC` (citizen ID), `CO_CE` (foreigner ID), `CO_NIT` (business tax id),
-`MXN_RFC`, `PASSPORT`.
+- **`amountInCents`**: integer ≥ 1 (payment links: ≥ 100). `currency`: `COP`.
+- **`rail`**: payins `PSE` | `BRE_B` | `NEQUI`; payouts `BRE_B` (the API also
+  accepts `TRANSFIYA` and `NEQUI`, enabled on request).
+- **`inlineCustomer`** (required on payins and payouts; payer or receiver):
+  `{ name, idType, idNumber, email, phone }`, all required. `idType` ∈ `CO_CC`,
+  `CO_CE`, `CO_NIT`, `PASSPORT`, `MXN_RFC`. `phone` must match `^\+573\d{9}$`.
+- **`callbackUrl`**: browser return URL after a hosted flow. Not proof of payment.
+- **Status**: `PENDING` → `PROCESSING` → `CONFIRMED` | `DECLINED` | `CANCELED`.
+  There is no `EXPIRED` payin status: after the expiry window (Bre-B 20 min,
+  PSE 30 min, Nequi 15 min) HelloPay checks the rail and the payin is confirmed
+  or `DECLINED` (e.g. `NEQUI_PAYIN_EXPIRED`); PSE can stay in progress longer.
+  A rail rejection at start goes `PENDING` → `DECLINED` with no `processing`
+  webhook. Payment links: `PENDING` →
+  `COMPLETED` | `EXPIRED` (1 hour).
+- **`sourceData`** (payins): rail data, partly filled **after** creation.
+  **`targetData`** (payouts): the destination.
 
 ## Decide which flow to build
 
 | Goal | Use | Reference |
 | --- | --- | --- |
-| Collect money, you build the checkout UI | `POST /payins` (`PSE`, `BRE_B`, or `NEQUI`) | [references/payins.md](references/payins.md) |
-| Collect money, HelloPay hosts the checkout | `POST /payment-links` | [references/payment-links.md](references/payment-links.md) |
-| Pay money out to a BRE-B / Transfiya account | `POST /payouts` | [references/payouts.md](references/payouts.md) |
-| Know the real outcome of any transaction | Webhooks (+ polling) | [references/webhooks.md](references/webhooks.md) |
-| Check balance / reconcile movements | `GET /ledger/*`, `POST /reports` | [references/api-catalog.md](references/api-catalog.md) |
+| Collect money with your own UI | `POST /payins` (`PSE`, `BRE_B`, `NEQUI`) | [references/payins.md](references/payins.md) |
+| Collect money on a HelloPay-hosted page | `POST /payment-links` | [references/payment-links.md](references/payment-links.md) |
+| Send money to a Bre-B key | `POST /payouts` | [references/payouts.md](references/payouts.md) |
+| Learn the real outcome of a transaction | Webhooks (+ polling) | [references/webhooks.md](references/webhooks.md) |
+| Handle a 4xx or an `errorCode` | Error formats and codes | [references/errors.md](references/errors.md) |
+| Check balance or reconcile | `GET /ledger/*`, `POST /reports` | [references/api-catalog.md](references/api-catalog.md) |
+| Test outcomes | Sandbox `idNumber` values | [references/sandbox.md](references/sandbox.md) |
 
 ## Quickstart
 
-### 1. Create a payin (collect a payment)
+### 1. Create a payin
 
-Pick a `rail`. PSE needs a `pse` object and redirects the payer to their bank;
-BRE-B needs a `breb` object and returns a key/QR. Nequi uses `inlineCustomer.phone`
-and needs no method-specific object. Payins are asynchronous, so poll for the data
-you need and wait for a final status or webhook.
-
-```bash
-curl --location 'https://api.stg.hellopay.com.co/payins' \
-  --header 'Content-Type: application/json' \
-  --header 'x-api-key: YOUR_API_KEY' \
-  --data-raw '{
-    "amountInCents": 10000,
-    "currency": "COP",
-    "rail": "PSE",
-    "reference": "INV-2024-001",
-    "inlineCustomer": {
-      "name": "John Doe", "idType": "CO_CC", "idNumber": "1000000001",
-      "email": "john.doe@example.com", "phone": "+573001234567"
-    },
-    "pse": { "bank": "CO_BANCOLOMBIA", "personType": "INDIVIDUAL" },
-    "callbackUrl": "https://your-app.com/checkout/return"
-  }'
-```
+PSE needs a `pse` object and redirects the payer to their bank. Bre-B needs
+`breb: { keyType }` and returns a key or QR. Nequi uses `inlineCustomer.phone`
+and needs no extra object.
 
 ```typescript
 const res = await fetch("https://api.stg.hellopay.com.co/payins", {
   method: "POST",
-  headers: { "Content-Type": "application/json", "x-api-key": process.env.HELLOPAY_API_KEY! },
+  headers: { "Content-Type": "application/json", "X-API-Key": process.env.HELLOPAY_API_KEY! },
   body: JSON.stringify({
-    amountInCents: 10000,
+    amountInCents: 100000,
     currency: "COP",
     rail: "PSE",
-    reference: "INV-2024-001",
+    reference: "INV-2026-001",
     inlineCustomer: {
       name: "John Doe", idType: "CO_CC", idNumber: "1000000001",
       email: "john.doe@example.com", phone: "+573001234567",
@@ -135,36 +109,30 @@ const res = await fetch("https://api.stg.hellopay.com.co/payins", {
     callbackUrl: "https://your-app.com/checkout/return",
   }),
 });
-const payin = await res.json(); // { id, status: "PENDING", sourceData: { pseUrl: null, ... }, ... }
+const payin = await res.json(); // { id, status: "PENDING", sourceData: { pseUrl: null, bank }, ... }
 ```
 
-The create response returns `status: "PENDING"` and rail-specific `sourceData`
-(`pseUrl` is `null` for PSE; BRE-B returns the `keyString`/`qrString`;
-Nequi returns `phone`). **Poll**
-`GET /payins/{id}` until the data you need is populated or the status is final.
-Full rail details, response shapes, and PSE bank codes are in
-[references/payins.md](references/payins.md) and
-[references/pse-banks.md](references/pse-banks.md).
+Then **poll** `GET /payins/{id}` every 1–2 s (timeout ~60 s) until the field you
+need is set: PSE `sourceData.pseUrl`, Bre-B `sourceData.keyString` (and
+`qrString` for `QR_CODE`). Nequi returns `sourceData.phone` immediately; just
+wait for the final status. Details: [references/payins.md](references/payins.md).
 
-### 2. Create a payout (send money via BRE-B)
-
-Validate the destination key first, then create the payout. Outcome arrives via
-webhook.
+### 2. Create a payout (Bre-B)
 
 ```bash
-# 1) Resolve / validate the destination BRE-B key
-curl --location 'https://api.stg.hellopay.com.co/breb/keys/@alphamunKey01' \
-  --header 'x-api-key: YOUR_API_KEY'
+# 1) Validate the destination key (404 = does not exist; do not pay)
+curl 'https://api.stg.hellopay.com.co/breb/keys/@alphamunKey01' \
+  --header 'X-API-Key: YOUR_API_KEY'
 
 # 2) Create the payout
-curl --location 'https://api.stg.hellopay.com.co/payouts' \
+curl --request POST 'https://api.stg.hellopay.com.co/payouts' \
   --header 'Content-Type: application/json' \
-  --header 'x-api-key: YOUR_API_KEY' \
-  --data-raw '{
-    "amountInCents": 10000,
+  --header 'X-API-Key: YOUR_API_KEY' \
+  --data '{
+    "amountInCents": 100000,
     "currency": "COP",
     "rail": "BRE_B",
-    "reference": "OUT-2024-001",
+    "reference": "OUT-2026-001",
     "inlineCustomer": {
       "name": "John Doe", "idType": "CO_CC", "idNumber": "1000000001",
       "email": "john.doe@example.com", "phone": "+573001234567"
@@ -173,95 +141,90 @@ curl --location 'https://api.stg.hellopay.com.co/payouts' \
   }'
 ```
 
-Returns `status: "PROCESSING"`. Confirm via `payout.confirmed` / `payout.declined` /
-`payout.canceled` webhooks. See [references/payouts.md](references/payouts.md).
+Returns `status: "PENDING"` and `targetData: { keyString }`. The balance must
+cover amount + fees. Confirm via `payout.confirmed` / `payout.declined` /
+`payout.canceled`. See [references/payouts.md](references/payouts.md).
 
-### 3. Create a payment link (HelloPay-hosted checkout)
-
-No custom checkout UI needed — redirect the payer to the returned `paymentLinkUrl`.
+### 3. Create a payment link
 
 ```bash
-curl --request POST \
-  --url 'https://api.stg.hellopay.com.co/payment-links' \
+curl --request POST 'https://api.stg.hellopay.com.co/payment-links' \
   --header 'Content-Type: application/json' \
-  --header 'x-api-key: YOUR_API_KEY' \
+  --header 'X-API-Key: YOUR_API_KEY' \
   --data '{
     "amountType": "FIXED",
     "reference": "INV-2026-001",
     "amountInCents": 100000,
-    "callbackUrl": "https://your-app.com/checkout/return",
-    "rail": "PSE",
-    "pse": { "bank": "CO_BANCOLOMBIA" }
+    "callbackUrl": "https://your-app.com/checkout/return"
   }'
 ```
 
-Returns `paymentLinkUrl` (redirect the payer there) and `expiresAt`. **Links expire
-after 1 hour.** Payment-link payins fire **`paymentlink.completed` / `paymentlink.expired`**
-webhooks — **not** `payin.*` events. See [references/payment-links.md](references/payment-links.md).
+Redirect the payer to `paymentLinkUrl`. Links expire after **1 hour**. Use
+**`paymentlink.completed` / `paymentlink.expired`** as the source of truth. The
+link's payin also sends `payin.processing|confirmed|settled` (with
+`data.paymentLinkId` set) but never `payin.declined|canceled`, so ignore
+`payin.*` events that carry a `paymentLinkId`. Match link events by
+`data.reference`: in `paymentlink.completed`, `paymentLinkId` is currently a short
+link code, not the creation id. A link can complete after `paymentlink.expired`.
+See
+[references/payment-links.md](references/payment-links.md).
 
-## Confirming outcomes: webhooks + polling
+## Confirming outcomes
 
-The authoritative result is **never** the create response. Use one of:
+- **Webhooks (recommended).** One URL + one custom auth header per organization
+  (portal → **Settings → Webhooks**). No signature: verify your header. Any
+  `2xx` within 30 s = delivered; otherwise retried hourly, up to 5 attempts.
+  Events raised while no webhook is configured are dropped, not queued.
+  Events: `payin.processing|confirmed|settled|declined|canceled`,
+  `payout.confirmed|declined|canceled` (no `payout.processing`),
+  `paymentlink.completed|expired`. Deduplicate on `event` + `data.id`.
+- **Polling.** `GET /payins/{id}` or `GET /payouts/{id}` until `status` is final.
 
-- **Webhooks (recommended).** Configure a URL + auth header in the portal
-  (**Settings → Webhooks**). HelloPay POSTs JSON events and retries hourly up to 10
-  times until it gets a `2xx`. Events: `payin.processing|confirmed|canceled|declined`,
-  `payout.processing|confirmed|canceled|declined`,
-  `paymentlink.completed|expired`. Match events to your orders via `data.reference`.
-- **Polling.** `GET /payins/{id}` or `GET /payouts/{id}` until `status` is terminal
-  and async `sourceData` is filled.
+Payloads and a handler: [references/webhooks.md](references/webhooks.md).
 
-Full event payloads and a sample handler: [references/webhooks.md](references/webhooks.md).
+## Sandbox outcomes
 
-## Testing in the sandbox
-
-In sandbox the **final outcome is driven by `inlineCustomer.idNumber`**:
-
-| idNumber | Result |
+| `inlineCustomer.idNumber` | Result |
 | --- | --- |
 | `1000000001` | Confirmed |
-| `1000000003` | Declined |
+| `1000000003` | Declined (`SANDBOX_DECLINED`) |
 | `1000000005` | Canceled |
-| any other value | Confirmed (default) |
+| any other value | Confirmed |
 
-`payin.processing`/`payout.processing` fires immediately; the terminal event ~5s
-later. Details: [references/sandbox.md](references/sandbox.md).
+The final status arrives about 5 s after the transaction starts processing.
+Details: [references/sandbox.md](references/sandbox.md).
 
-## Endpoint catalog (principal)
+## Endpoint catalog
 
 | Method & path | Purpose |
 | --- | --- |
-| `POST /payins` | Create a payin (collect a payment) |
-| `POST /payins/sync` | Create + initiate a payin synchronously |
-| `GET /payins` · `GET /payins/{id}` | List / fetch payins |
-| `POST /payouts` | Create a payout (send money) |
-| `GET /payouts` · `GET /payouts/{id}` | List / fetch payouts |
+| `POST /payins` | Create a payin |
+| `GET /payins` · `GET /payins/{id}` | List (filters: `reference`, `customerIdNumber`) / fetch payins |
+| `POST /payouts` | Create a payout |
+| `GET /payouts` · `GET /payouts/{id}` | List (same filters) / fetch payouts |
 | `POST /payment-links` · `GET /payment-links/{paymentLinkId}` | Create / fetch a hosted payment link |
-| `GET /breb/keys/{keyString}` | Resolve BRE-B key (name, bank, document) |
-| `GET /breb/keys/{keyString}/payin-status` | BRE-B intent status for a key |
-| `GET /transfiya/target/key` · `GET /transfiya/target/account` | Resolve a Transfiya target |
+| `GET /breb/keys/{keyString}` | Resolve a Bre-B key (name, bank, document) |
 | `GET /ledger/balance` · `GET /ledger/entries` | Balance and ledger movements |
-| `POST /reports` · `GET /reports` · `GET /reports/{id}` | Async CSV reports (MOVEMENTS / PAYINS / PAYOUTS) |
+| `POST /reports` · `GET /reports` · `GET /reports/{id}` | Async CSV reports |
 
-Full parameters, schemas, pagination (cursor & page-based), and error codes:
-[references/api-catalog.md](references/api-catalog.md).
+Parameters, pagination, and conventions: [references/api-catalog.md](references/api-catalog.md).
+The OpenAPI spec is at `https://docs.hellopay.com.co/openapi.yaml`.
 
 ## Drop-in client
 
-A minimal, dependency-free (uses native `fetch`) TypeScript client covering auth,
-create+poll payin, payout, payment link, BRE-B lookup, and balance is in
-[assets/hellopay-client.ts](assets/hellopay-client.ts). Copy it into your backend
-and set `HELLOPAY_API_KEY`.
+[assets/hellopay-client.ts](assets/hellopay-client.ts) is a dependency-free
+TypeScript client (native `fetch`) covering auth, payins with polling, payouts,
+payment links, Bre-B lookup, reference lookup, and balance. Copy it into the
+backend and set `HELLOPAY_API_KEY`.
 
 ## Integration checklist
 
-1. Create an API key in the portal; store it server-side as `HELLOPAY_API_KEY`.
-2. Build against the **sandbox** base URL first.
-3. Send `amountInCents` as integer minor units; set `currency: "COP"`.
-4. Choose your collection flow: `POST /payins` (own UI) or `POST /payment-links` (hosted).
-5. For async rails, **poll** the transaction until `sourceData` is ready before
-   redirecting the payer.
-6. Configure a **webhook** endpoint (+ auth header) and treat its event as the source
-   of truth; return `2xx` quickly and process idempotently using `reference`.
-7. Test confirmed/declined/canceled paths with the sandbox `idNumber` values.
-8. Swap to the production base URL and a production key to go live.
+1. Store the API key server-side as `HELLOPAY_API_KEY`; use the sandbox URL first.
+2. Send integer `amountInCents` and `currency: "COP"`; display `amount` (pesos).
+3. Choose the collection flow: `POST /payins` (own UI) or `POST /payment-links` (hosted).
+4. For PSE and Bre-B, poll until `sourceData` is ready before showing it to the payer.
+5. Configure a webhook with an auth header; verify it, reply `2xx` fast, process
+   idempotently, and never move a final status back to `PROCESSING`.
+6. Before retrying a timed-out create, look it up by `reference`.
+7. Test confirmed / declined / canceled with the sandbox `idNumber` values.
+8. Go live with the production base URL and a production key.

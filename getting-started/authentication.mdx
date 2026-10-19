@@ -1,41 +1,66 @@
 ---
-title: "Authentication and Environments"
+title: "Authentication and environments"
+sidebarTitle: "Authentication"
+description: "Create an API key in the HelloPay portal and send it in the X-API-Key header. Use separate keys and base URLs for sandbox and production."
 icon: "fingerprint"
+keywords: ["api key", "x-api-key", "authentication", "sandbox", "production", "base url", "ip allowlist"]
 ---
 
 ## Environments
 
-Our clients can access two environments: staging and production.
+HelloPay has two environments. Each one has its own portal, API base URL, and API keys.
 
-**Staging:**
+| Environment | API base URL | Portal | Real money |
+| --- | --- | --- | --- |
+| Sandbox (staging) | `https://api.stg.hellopay.com.co` | [portal.stg.hellopay.com.co](https://portal.stg.hellopay.com.co) | No |
+| Production | `https://api.hellopay.com.co` | [portal.hellopay.com.co](https://portal.hellopay.com.co) | Yes |
+
+Sandbox keys only work with the sandbox API, and production keys only work with the production API. See [Sandbox](/getting-started/sandbox) for test data.
+
+## Create an API key
+
+<Steps>
+  <Step title="Sign in to the portal">
+    Open the portal for your environment: [sandbox](https://portal.stg.hellopay.com.co) or [production](https://portal.hellopay.com.co). If you do not have a user yet, see [Portal access](#portal-access).
+  </Step>
+  <Step title="Open Settings → API Keys">
+    Go directly to [sandbox API keys](https://portal.stg.hellopay.com.co/settings/api-keys) or [production API keys](https://portal.hellopay.com.co/settings/api-keys).
+  </Step>
+  <Step title="Create and store the key">
+    Click **Create API Key** and copy it right away. The key is only shown once. Store it in a secret manager or an environment variable such as `HELLOPAY_API_KEY`.
+  </Step>
+</Steps>
+
+## Send the key
+
+Send the key in the `X-API-Key` header on every request. Header names are case-insensitive, so `x-api-key` also works.
+
+<CodeGroup>
+```bash cURL
+curl --request GET 'https://api.stg.hellopay.com.co/payins' \
+  --header 'X-API-Key: YOUR_API_KEY'
 ```
-Portal: https://portal.stg.hellopay.com.co
-API: https://api.stg.hellopay.com.co 
+
+```typescript TypeScript
+const res = await fetch("https://api.stg.hellopay.com.co/payins", {
+  headers: { "X-API-Key": process.env.HELLOPAY_API_KEY! },
+});
 ```
+</CodeGroup>
 
-Production:
-```
-Portal: https://portal.hellopay.com.co
-API: https://api.hellopay.com.co 
-```
+<Warning>
+  Call HelloPay from your backend only. Never put the API key in a browser, mobile app, or public repository.
+</Warning>
 
-## Authentication - API
+## Authentication errors
 
-To authenticate with our API, we use API Keys. Follow the following steps to get them:
+| Status | Cause | Fix |
+| --- | --- | --- |
+| `401 Unauthorized` | The `X-API-Key` header is missing (`"Unauthorized"`), or the key is invalid or revoked (`"Invalid API key"`) | Check the header name and that the key belongs to this environment |
+| `403 Forbidden` | Your organization has an IP allowlist and the request came from another IP | Call from an allowlisted IP or ask support to update the list |
 
-1. Enter the HelloPay portal. ([Staging ](https://portal.stg.hellopay.com.co)| [Production](https://portal.hellopay.com.co))
-2. Go to "Settings -> API Keys". ([Staging](https://portal.stg.hellopay.com.co/settings/api-keys) | [Production](https://portal.hellopay.com.co/settings/api-keys))
-3. Click **Create API Key**.
-4. Save your **API Key** (it will only be visible when it is created).
+See [Errors](/getting-started/errors) for every error format.
 
-The way to use the API keys is by sending them in the `X-API-Key` header of your requests.
+## Portal access
 
-**Example:**
-```
-curl --location 'https://api.stg.hellopay.com.co/payins' \
---header 'x-api-key: ••••••'
-```
-
-## Portal Access
-
-To access the client portal, you need to request the creation of your users to our support team or commercial contact.
+Portal users are created by HelloPay. Ask [support](mailto:support@hellopay.com.co) or your commercial contact to create users for your team.

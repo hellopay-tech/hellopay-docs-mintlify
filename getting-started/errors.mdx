@@ -1,0 +1,119 @@
+---
+title: "Errors"
+description: "HTTP error format for HelloPay API requests and the errorCode values that explain declined or canceled payins and payouts."
+icon: "triangle-exclamation"
+keywords: ["errors", "400", "401", "403", "404", "500", "errorCode", "validation", "declined", "VENDOR_REJECTED"]
+---
+
+HelloPay reports problems in two places:
+
+- **Request errors**: the HTTP status and body of a failed request, for example invalid input.
+- **Transaction errors**: a request that succeeded, but the transaction later became `DECLINED` or `CANCELED`. For `DECLINED`, the reason is in `errorCode` on the payin or payout and in its webhook. `CANCELED` usually has `errorCode: null`.
+
+## Request errors
+
+Failed requests return JSON with `statusCode` and `message`:
+
+<CodeGroup>
+```json 400 validation
+{
+  "statusCode": 400,
+  "message": [
+    "inlineCustomer.phone must start with +573 and be followed by 9 digits",
+    "property nequi should not exist"
+  ],
+  "error": "Bad Request"
+}
+```
+
+```json 400 business rule
+{
+  "statusCode": 400,
+  "message": "The breb object is required when rail is BRE_B",
+  "error": "Bad Request"
+}
+```
+
+```json 401
+{
+  "statusCode": 401,
+  "message": "Invalid API key",
+  "error": "Unauthorized"
+}
+```
+
+```json 404
+{
+  "statusCode": 404,
+  "message": "Payin with id 123e4567-e89b-12d3-a456-426614174000 not found",
+  "error": "Not Found"
+}
+```
+</CodeGroup>
+
+`message` is an **array of strings** for validation errors and a **single string** otherwise. Handle both.
+
+| Status | Meaning | What to do |
+| --- | --- | --- |
+| `400` | Invalid body or parameters, or a business rule failed (for example, a rail not enabled for your organization, or `"Insufficient balance"` when a payout plus its fees exceeds your available balance) | Fix the request. Do not retry it unchanged |
+| `401` | `message: "Unauthorized"` when the `X-API-Key` header is missing, `"Invalid API key"` when the key is wrong or revoked | Check the key and the environment |
+| `403` | IP address not in your organization's allowlist | Call from an allowed IP |
+| `404` | The resource does not exist or belongs to another organization | Check the ID |
+| `500` | Unexpected server error | Check whether the transaction was created (`GET /payins?reference=...`) before you retry |
+
+<Warning>
+  The API rejects unknown fields. For example, sending a `nequi` object in a Nequi payin returns `400`. Only send the fields documented for each endpoint.
+</Warning>
+
+## Common validation rules
+
+| Field | Rule |
+| --- | --- |
+| `amountInCents` | Integer ≥ 1. Payment links require ≥ 100 |
+| `currency` | `COP` |
+| `inlineCustomer` | Required on payins and payouts, with every field |
+| `inlineCustomer.name` (payins) | A person or company name: letters only, no digits or URLs, up to 120 characters |
+| `inlineCustomer.phone` | `+573` followed by 9 digits, for example `+573001234567` |
+| `inlineCustomer.idType` | `CO_CC`, `CO_CE`, `CO_NIT`, `PASSPORT`, `MXN_RFC` |
+| `pse` | Required when `rail` is `PSE`, with `bank` and `personType` |
+| `breb` | Required when `rail` is `BRE_B` |
+| `pse` on a payment link | Only allowed when `rail` is `PSE` |
+| `callbackUrl` | Must be a valid URL when sent |
+
+## Transaction error codes
+
+When a payin or payout ends as `DECLINED`, `errorCode` explains why. A `CANCELED` transaction usually has `errorCode: null`, so do not rely on it to detect cancellation: check `status`. Treat the list as open: new codes can be added, so handle unknown values as a generic failure.
+
+<AccordionGroup>
+  <Accordion title="Payin error codes" icon="hand-holding-dollar">
+    | `errorCode` | Meaning |
+    | --- | --- |
+    | `PSE_PAYIN_EXPIRED` | The PSE payment was never started at the bank before the expiry check |
+    | `BRE_B_PAYIN_EXPIRED` | No Bre-B payment intent existed at the expiry check |
+    | `NEQUI_PAYIN_EXPIRED` | The payer did not approve in Nequi within 15 minutes |
+    | `PSE_PAYMENT_CANCELLED` | The payer canceled at the bank |
+    | `PSE_PAYIN_VENDOR_REJECTED` | PSE rejected the payment |
+    | `VENDOR_REJECTED` | The payment provider rejected the request |
+    | `VENDOR_ABORTED` | The payment provider aborted the transaction |
+    | `PSE_LIMIT_EXCEEDED` | The amount exceeds the payer's PSE limit |
+    | `PAYIN_DECLINED` | The payment was declined |
+    | `SANDBOX_DECLINED` | Sandbox only: declined by test document `1000000003` |
+    | `SANDBOX_PAYIN_EXPIRED` | Sandbox only: the payin expired |
+  </Accordion>
+  <Accordion title="Payout error codes" icon="paper-plane">
+    | `errorCode` | Meaning |
+    | --- | --- |
+    | `BRE_B_KEY_NOT_FOUND` | The destination Bre-B key does not exist |
+    | `BRE_B_DECLINED` | The Bre-B network declined the payout |
+    | `VENDOR_REJECTED` | The payment provider rejected the payout |
+    | `TRANSFIYA_KEY_NOT_FOUND` | The destination Transfiya key does not exist |
+    | `TRANSFIYA_DECLINED` | Transfiya declined the payout |
+    | `NEQUI_PAYOUT_REJECTED` | Nequi rejected the payout |
+    | `PAYOUT_DECLINED` | The payout was declined |
+    | `SANDBOX_DECLINED` | Sandbox only: declined by test document `1000000003` |
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+  You can prevent `BRE_B_KEY_NOT_FOUND` by validating the destination with [`GET /breb/keys/{keyString}`](/api-reference/bre-b/get-bre-b-key-details) before you create the payout.
+</Tip>

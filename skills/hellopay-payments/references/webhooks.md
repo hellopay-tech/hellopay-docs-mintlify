@@ -1,136 +1,172 @@
 # Webhooks
 
 Webhooks are the **authoritative** way to learn a transaction's outcome. HelloPay
-POSTs a JSON event to your URL when an event occurs and **retries every hour up to 10
-times** until it receives a `2xx`. Any `2xx` is treated as delivered.
+sends an HTTP `POST` with a JSON body to the organization's webhook URL on each
+status change.
 
 ## Setup
 
-1. Open the portal → **Settings → Webhooks**
-   (sandbox: `https://portal.stg.hellopay.com.co/settings/webhooks`).
-2. Enter your endpoint URL and the required **authentication header** (HelloPay sends
-   this header on every webhook request so you can verify the call is from HelloPay —
-   currently the only supported verification method).
-3. Save.
+1. Portal → **Settings → Webhooks** (sandbox:
+   `https://portal.stg.hellopay.com.co/settings/webhooks`).
+2. Enter the endpoint URL plus a custom **authentication header** name and value
+   (for example `X-Webhook-Secret: <random>`). HelloPay sends that header on every
+   request. Requests are **not signed**: checking this header is the only
+   verification.
+3. Save. One URL per organization receives every event type.
+
+## Delivery rules
+
+- Any `2xx` = delivered. HelloPay waits up to **30 s** for the response.
+- On failure: retried **every hour**, **5 attempts** in total.
+- Events may be duplicated or arrive out of order.
+- Events raised while no webhook is configured are dropped, not queued.
 
 ## Handling rules
 
-- Respond `2xx` **quickly**; do heavy work asynchronously to avoid retries/timeouts.
-- Process **idempotently** — the same event may be delivered more than once. Dedupe on
-  `data.id` (or `data.paymentLinkId`) + `event`.
-- Correlate to your order via **`data.reference`** (the reference you sent) or the
-  resource id.
-- Verify the configured auth header before trusting the payload.
+- Verify the auth header; reject otherwise.
+- Reply `2xx` fast; do the work in a background job.
+- Deduplicate on `event` + `data.id` (or `data.paymentLinkId`).
+- Correlate with `data.reference`.
+- Never move a final status (`CONFIRMED`/`DECLINED`/`CANCELED`) back to
+  `PROCESSING`.
+- For long outages, reconcile with `GET /payins` and `GET /payouts`.
 
-## Event payloads
+## Events
 
-### Payins
+| Event | Meaning |
+| --- | --- |
+| `payin.processing` | Sent to the rail, waiting for the payer |
+| `payin.confirmed` | Paid. Fulfill the order |
+| `payin.settled` | Confirmed funds settled in the balance |
+| `payin.declined` | Rejected, or expired unpaid |
+| `payin.canceled` | Canceled |
+| `payout.confirmed` | Funds delivered |
+| `payout.declined` | Rejected |
+| `payout.canceled` | Canceled |
+| `paymentlink.completed` | Payment link paid |
+| `paymentlink.expired` | Payment link expired unpaid (1 hour) |
 
-```javascript
+No webhook for `PENDING`. **No `payout.processing`.**
+
+Payment-link payins send `payin.processing`, `payin.confirmed`, and
+`payin.settled` (with `data.paymentLinkId` set) but **never** `payin.declined` or
+`payin.canceled`. Use `paymentlink.*` as the source of truth and ignore `payin.*`
+events that have a `paymentLinkId`.
+
+## Payloads
+
+Envelope: `{ event, resource: "payin" | "payout" | "paymentlink", data }`.
+Amounts are pesos (no `amountInCents`). Timestamps are ISO 8601 UTC strings.
+
+### Payin
+
+```json
 {
-  event: 'payin.processing' | 'payin.confirmed' | 'payin.canceled' | 'payin.declined',
-  resource: 'payin',
-  data: {
-    id: string,
-    reference: string | null,
-    amount: number,
-    currency: 'COP',
-    status: 'PROCESSING' | 'CONFIRMED' | 'CANCELED' | 'DECLINED',
-    rail: 'BRE_B' | 'PSE',
-    sourceData: object,
-    errorCode: string | null,
-    createdAt: Date,
-    updatedAt: Date,
-    resultAt: Date | null,
-    organizationId: string,
-  },
+  "event": "payin.confirmed",
+  "resource": "payin",
+  "data": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "paymentLinkId": null,
+    "reference": "INV-2026-001",
+    "amount": 1000,
+    "confirmedAmount": 1000,
+    "currency": "COP",
+    "status": "CONFIRMED",
+    "rail": "PSE",
+    "errorCode": null,
+    "sourceData": { "pseUrl": "https://...", "bank": "CO_BANCOLOMBIA" },
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:02:10.000Z",
+    "resultAt": "2026-01-01T00:02:10.000Z",
+    "chargebackAt": null,
+    "settlementAt": null,
+    "organizationId": "123e4567-e89b-12d3-a456-426614174000"
+  }
 }
 ```
 
-### Payouts
+`rail` ∈ `PSE`, `BRE_B`, `NEQUI`. `confirmedAmount` is `0` until confirmed. The
+payin webhook does not include
+`inlineCustomer` or `callbackUrl`.
 
-```javascript
+### Payout
+
+```json
 {
-  event: 'payout.processing' | 'payout.confirmed' | 'payout.canceled' | 'payout.declined',
-  resource: 'payout',
-  data: {
-    id: string,
-    reference: string | null,
-    amount: number,
-    currency: 'COP',
-    status: 'PROCESSING' | 'CONFIRMED' | 'CANCELED' | 'DECLINED',
-    rail: 'BRE_B',
-    targetData: object,
-    errorCode: string | null,
-    createdAt: Date,
-    updatedAt: Date,
-    resultAt: Date | null,
-    organizationId: string,
-  },
+  "event": "payout.confirmed",
+  "resource": "payout",
+  "data": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "reference": "OUT-2026-001",
+    "amount": 1000,
+    "currency": "COP",
+    "status": "CONFIRMED",
+    "rail": "BRE_B",
+    "errorCode": null,
+    "targetData": { "keyString": "@alphamunKey01" },
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:05.000Z",
+    "resultAt": "2026-01-01T00:00:05.000Z",
+    "organizationId": "123e4567-e89b-12d3-a456-426614174000"
+  }
 }
 ```
 
-### Payment links
+### Payment link
 
-Fired when a hosted payment link settles. `paymentlink.completed` on a successful
-payment; `paymentlink.expired` when the 1-hour window elapses unpaid.
-
-> ⚠️ Payins created via a payment link do **NOT** fire `payin.*` events. Use
-> `paymentlink.completed` as the sole authoritative signal for link payments.
-
-```javascript
+```json
 {
-  event: 'paymentlink.completed' | 'paymentlink.expired',
-  resource: 'paymentlink',
-  data: {
-    paymentLinkId: string,      // UUID
-    reference: string | null,
-    amount: number,
-    currency: 'COP',
-    status: 'COMPLETED' | 'EXPIRED',
-    createdAt: Date,
-    updatedAt: Date,
-    expiresAt: Date | null,
-    completedAt: Date | null,
-  },
+  "event": "paymentlink.completed",
+  "resource": "paymentlink",
+  "data": {
+    "paymentLinkId": "4a8f2e1b-7c3d-4e5a-9b6c-8d1f2e3a4b5c",
+    "reference": "INV-2026-001",
+    "amount": 1000,
+    "currency": "COP",
+    "status": "COMPLETED",
+    "createdAt": "2026-04-20T10:00:00.000Z",
+    "updatedAt": "2026-04-20T10:04:20.395Z",
+    "expiresAt": "2026-04-20T11:00:00.000Z",
+    "completedAt": "2026-04-20T10:04:20.393Z"
+  }
 }
 ```
+
+`status` ∈ `COMPLETED`, `EXPIRED`; `completedAt` is `null` when expired. Match
+link events to orders by `data.reference`: in `paymentlink.completed`,
+`paymentLinkId` is currently a short link code, not the id returned at creation
+(`paymentlink.expired` uses the creation id). A link can still complete after
+`paymentlink.expired`; treat that as paid.
 
 ## Sample handler (Express)
 
-```javascript
-app.post('/webhook', express.json(), (req, res) => {
-  // 1. Verify the configured auth header (reject if it doesn't match).
-  // 2. Ack fast.
-  res.sendStatus(200);
-
-  const { event, resource, data } = req.body;
-  switch (event) {
-    case 'payin.confirmed':
-      // mark order paid (data.reference / data.id)
-      break;
-    case 'payin.declined':
-    case 'payin.canceled':
-      // mark order failed
-      break;
-    case 'payout.confirmed':
-      // mark disbursement settled
-      break;
-    case 'paymentlink.completed':
-      // mark hosted-checkout order paid (data.reference / data.paymentLinkId)
-      break;
-    case 'paymentlink.expired':
-      // offer the payer a fresh link
-      break;
+```typescript
+app.post("/webhooks/hellopay", express.json(), async (req, res) => {
+  if (req.header("X-Webhook-Secret") !== process.env.HELLOPAY_WEBHOOK_SECRET) {
+    return res.sendStatus(401);
   }
+  const { event, data } = req.body;
+  const key = `${event}:${data.id ?? data.paymentLinkId}`;
+  if (await alreadyProcessed(key)) return res.sendStatus(200);
+  await enqueue(key, event, data); // process in the background
+  res.sendStatus(200);
 });
+
+async function handle(event: string, data: any) {
+  if (event.startsWith("payin.") && data.paymentLinkId) return; // covered by paymentlink.*
+  switch (event) {
+    case "payin.confirmed":
+    case "paymentlink.completed":
+      return markOrderPaid(data.reference);
+    case "payin.declined":
+    case "payin.canceled":
+    case "paymentlink.expired":
+      return markOrderFailed(data.reference);
+    case "payout.confirmed":
+      return markPayoutSent(data.reference);
+    case "payout.declined":
+    case "payout.canceled":
+      return markPayoutFailed(data.reference);
+  }
+}
 ```
-
-## Event sequence
-
-1. `*.processing` fires almost immediately after creation.
-2. The terminal event (`confirmed` / `declined` / `canceled`, or
-   `completed` / `expired` for links) follows.
-
-You can also confirm a payin by polling `GET /payins/{id}` until `status` is terminal —
-choose webhooks or polling per integration; you don't need both.

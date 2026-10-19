@@ -19,7 +19,8 @@ const BASE_URLS: Record<Environment, string> = {
 
 export type IdType = "CO_CC" | "CO_CE" | "CO_NIT" | "MXN_RFC" | "PASSPORT";
 export type PayinRail = "PSE" | "BRE_B" | "NEQUI";
-export type PayoutRail = "BRE_B" | "TRANSFIYA";
+/** BRE_B is the documented rail; TRANSFIYA and NEQUI must be enabled by HelloPay support. */
+export type PayoutRail = "BRE_B" | "TRANSFIYA" | "NEQUI";
 export type TxStatus = "PENDING" | "PROCESSING" | "CONFIRMED" | "DECLINED" | "CANCELED";
 
 export interface InlineCustomer {
@@ -40,7 +41,7 @@ export interface CreatePayinInput {
   pse?: { bank: string; personType: "INDIVIDUAL" | "BUSINESS" };
   /** Required when rail === "BRE_B". */
   breb?: { keyType: "SINGLE_USE" | "QR_CODE" };
-  /** For NEQUI, inlineCustomer.phone is the payer's Nequi mobile number. */
+  /** For NEQUI, inlineCustomer.phone is the payer's Nequi number; send no `nequi` object. */
   callbackUrl?: string;
 }
 
@@ -49,18 +50,21 @@ export interface CreatePayoutInput {
   currency: "COP";
   rail: PayoutRail;
   reference: string;
-  inlineCustomer?: InlineCustomer;
-  /** Required when rail === "BRE_B". */
+  /** The receiver. */
+  inlineCustomer: InlineCustomer;
+  /** Required when rail === "BRE_B". Validate first with getBrebKey(). */
   breb?: { keyString: string };
-  /** Required when rail === "TRANSFIYA". */
-  transfiya?: {
-    keyString: string;
-    account: { bank: string; bankAccountNumber: string; customerDocumentNumber: string };
-  };
+  /** Required when rail === "TRANSFIYA". Send exactly one of keyString or account. */
+  transfiya?:
+    | { keyString: string }
+    | { account: { bank: string; bankAccountNumber: string; customerDocumentNumber: string } };
+  /** Required when rail === "NEQUI". */
+  nequi?: { phone: string };
 }
 
 export interface CreatePaymentLinkInput {
   amountType: "FIXED";
+  /** Minimum 100. */
   amountInCents: number;
   reference: string;
   callbackUrl: string;
@@ -76,6 +80,7 @@ export interface Transaction {
   status: TxStatus;
   rail: string;
   reference: string;
+  /** Pesos (amountInCents / 100). */
   amount: number;
   amountInCents: number;
   currency: string;
@@ -83,6 +88,11 @@ export interface Transaction {
   targetData?: Record<string, unknown>;
   errorCode?: string | null;
   [key: string]: unknown;
+}
+
+export interface Page<T> {
+  data: T[];
+  pageInfo: { hasNext: boolean; hasPrevious: boolean; nextCursor: string | null; previousCursor: string | null };
 }
 
 export interface PaymentLink {
@@ -118,7 +128,7 @@ export class HelloPay {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers: {
-        "x-api-key": this.apiKey,
+        "X-API-Key": this.apiKey,
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -139,6 +149,10 @@ export class HelloPay {
   getPayin(id: string) {
     return this.request<Transaction>("GET", `/payins/${id}`);
   }
+  /** `reference` is not unique: use this before retrying a create that timed out. */
+  findPayinsByReference(reference: string) {
+    return this.request<Page<Transaction>>("GET", `/payins?reference=${encodeURIComponent(reference)}`);
+  }
 
   // ---- Payouts ----
   createPayout(input: CreatePayoutInput) {
@@ -146,6 +160,10 @@ export class HelloPay {
   }
   getPayout(id: string) {
     return this.request<Transaction>("GET", `/payouts/${id}`);
+  }
+  /** `reference` is not unique: use this before retrying a create that timed out. */
+  findPayoutsByReference(reference: string) {
+    return this.request<Page<Transaction>>("GET", `/payouts?reference=${encodeURIComponent(reference)}`);
   }
 
   // ---- Payment links ----
@@ -195,7 +213,7 @@ export class HelloPay {
  *
  * const hp = new HelloPay({ apiKey: process.env.HELLOPAY_API_KEY!, env: "sandbox" });
  * const payin = await hp.createPayin({
- *   amountInCents: 10000,
+ *   amountInCents: 100000,
  *   currency: "COP",
  *   rail: "PSE",
  *   reference: "INV-2024-001",

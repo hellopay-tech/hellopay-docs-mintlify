@@ -2,16 +2,24 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "maple",
   "name": "HelloPay API Documentation",
+  "description": "Payments API for Colombia: collect with PSE, Bre-B, and Nequi, send Bre-B payouts, create hosted payment links, and receive webhooks.",
   "appearance": {
     "default": "light",
     "strict": false
   },
   "colors": {
     "primary": "#0F63FF",
-    "light": "#0F63FF",
+    "light": "#5B93FF",
     "dark": "#0F63FF"
   },
   "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/logo.png",
+    "dark": "/logo/logo-dark.png"
+  },
+  "styling": {
+    "eyebrows": "breadcrumbs"
+  },
   "api": {
     "playground": {
       "display": "interactive"
@@ -19,7 +27,8 @@
     "examples": {
       "languages": [
         "bash",
-        "typescript"
+        "typescript",
+        "python"
       ],
       "defaults": "required",
       "prefill": true
@@ -32,98 +41,87 @@
         "icon": "book-open",
         "groups": [
           {
-            "group": "Getting Started",
-            "icon": "play",
-              "pages": [
-                "index",
-                "getting-started/ai-skill",
-                "getting-started/authentication",
-                "getting-started/sandbox",
-                "getting-started/webhooks"
-              ]
-          },
-          {
-            "group": "Guides",
-            "icon": "notebook-text",
+            "group": "Get started",
             "pages": [
-              "guides/how-to-create-first-payout",
-              {
-                "group": "Payins",
-                "icon": "wallet",
-                "pages": [
-                  "guides/how-to-create-first-payin",
-                  "guides/payin-pse",
-                  "guides/payin-breb",
-                  "guides/payin-nequi"
-                ]
-              },
-              {
-                "group": "Payment Links",
-                "icon": "link",
-                "pages": [
-                  "guides/payment-links"
-                ]
-              }
+              "index",
+              "getting-started/core-concepts",
+              "getting-started/authentication",
+              "getting-started/sandbox",
+              "getting-started/webhooks",
+              "getting-started/errors",
+              "getting-started/ai-skill"
             ]
           },
           {
-            "group": "API reference",
-            "icon": "square-terminal",
-            "openapi": "/openapi.yaml",
+            "group": "Collect payments",
             "pages": [
-              {
-                "group": "Payment Links",
-                "icon": "link",
-                "pages": [
-                  "POST /payment-links",
-                  "GET /payment-links/{paymentLinkId}"
-                ]
-              },
-              {
-                "group": "Payins",
-                "icon": "code",
-                "pages": [
-                  "POST /payins",
-                  "GET /payins",
-                  "GET /payins/{id}"
-                ]
-              },
-              {
-                "group": "Payouts",
-                "icon": "code",
-                "pages": [
-                  "POST /payouts",
-                  "GET /payouts",
-                  "GET /payouts/{id}"
-                ]
-              },
-              {
-                "group": "Ledger",
-                "icon": "list",
-                "pages": [
-                  "GET /ledger/balance",
-                  "GET /ledger/entries"
-                ]
-              },
-              {
-                "group": "BreB",
-                "icon": "wallet",
-                "pages": [
-                  "GET /breb/keys/{keyString}"
-                ]
-              }
+              "guides/how-to-create-first-payin",
+              "guides/payin-pse",
+              "guides/payin-breb",
+              "guides/payin-nequi",
+              "guides/payment-links"
+            ]
+          },
+          {
+            "group": "Send payments",
+            "pages": [
+              "guides/how-to-create-first-payout"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "icon": "square-terminal",
+        "openapi": "/openapi.yaml",
+        "groups": [
+          {
+            "group": "Payins",
+            "icon": "hand-holding-dollar",
+            "pages": [
+              "POST /payins",
+              "GET /payins",
+              "GET /payins/{id}"
+            ]
+          },
+          {
+            "group": "Payment links",
+            "icon": "link",
+            "pages": [
+              "POST /payment-links",
+              "GET /payment-links/{paymentLinkId}"
+            ]
+          },
+          {
+            "group": "Payouts",
+            "icon": "paper-plane",
+            "pages": [
+              "POST /payouts",
+              "GET /payouts",
+              "GET /payouts/{id}",
+              "GET /breb/keys/{keyString}"
+            ]
+          },
+          {
+            "group": "Ledger",
+            "icon": "book",
+            "pages": [
+              "GET /ledger/balance",
+              "GET /ledger/entries"
+            ]
+          },
+          {
+            "group": "Reports",
+            "icon": "file-csv",
+            "pages": [
+              "POST /reports",
+              "GET /reports",
+              "GET /reports/{id}"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": []
-    }
-  },
-  "logo": {
-    "light": "/logo/logo.png",
-    "dark": "/logo/logo-dark.png"
+    ]
   },
   "navbar": {
     "links": [
@@ -136,25 +134,76 @@
         "label": "Support",
         "href": "mailto:support@hellopay.com.co",
         "icon": "envelope"
-      },
-      {
-        "label": "Client Portal",
-        "href": "https://portal.hellopay.com.co",
-        "icon": "user"
       }
-    ]
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Client portal",
+      "href": "https://portal.hellopay.com.co"
+    }
+  },
+  "search": {
+    "prompt": "Search payins, payouts, webhooks..."
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "add-mcp",
+      "cursor",
+      "vscode",
+      "download-spec"
+    ]
   },
-  "footer": {}
+  "markdown": {
+    "instructions": [
+      "Authenticate every request with the X-API-Key header. Never use Authorization: Bearer.",
+      "Sandbox base URL: https://api.stg.hellopay.com.co. Production: https://api.hellopay.com.co. Build and test against the sandbox first.",
+      "Send amounts as integer amountInCents (100000 = 1,000 COP). Responses and webhooks return amount in pesos.",
+      "Payins and payouts are asynchronous: the create response (status PENDING) is never the final result. Confirm with webhooks or by polling GET /payins/{id} or GET /payouts/{id}.",
+      "PSE pseUrl and Bre-B keyString/qrString are null at creation; poll until they are set. Nequi needs no polling for source data.",
+      "reference is not unique and there is no idempotency key: look up GET /payins?reference=... before retrying a create.",
+      "For payment links, treat paymentlink.completed and paymentlink.expired as the source of truth.",
+      "For a complete integration workflow, install the agent skill: npx skills add hellopay-tech/hellopay-docs-mintlify --skill hellopay-payments"
+    ]
+  },
+  "seo": {
+    "metatags": {
+      "og:site_name": "HelloPay Docs"
+    }
+  },
+  "metadata": {
+    "timestamp": true
+  },
+  "footer": {
+    "socials": {
+      "website": "https://hellopay.com.co",
+      "github": "https://github.com/hellopay-tech"
+    }
+  },
+  "errors": {
+    "404": {
+      "redirect": false,
+      "title": "Page not found",
+      "description": "Try the [overview](/) or search the docs. Building with an AI agent? Start from [/llms.txt](/llms.txt)."
+    }
+  },
+  "redirects": [
+    {
+      "source": "/api-reference/breb/get-breb-key-details",
+      "destination": "/api-reference/bre-b/get-bre-b-key-details"
+    },
+    {
+      "source": "/guides/go-live",
+      "destination": "/#go-live"
+    },
+    {
+      "source": "/development",
+      "destination": "/"
+    }
+  ]
 }

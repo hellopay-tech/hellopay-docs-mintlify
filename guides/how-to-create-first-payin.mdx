@@ -1,87 +1,163 @@
 ---
-title: 'How to create your first payin'
-description: 'Understand the general payin flow before integrating a payment method.'
-icon: 'file-code'
+title: "Payins overview"
+sidebarTitle: "Overview"
+description: "How a HelloPay payin works from request to confirmation, the fields every payment method shares, and how to choose between PSE, Bre-B, and Nequi."
+icon: "hand-holding-dollar"
+keywords: ["payin", "collect payment", "POST /payins", "PSE", "Bre-B", "Nequi", "sourceData", "polling"]
 ---
 
-Use the `/payins` endpoint to create a payment request that your customer will complete using one of the supported payment methods.
+import { SequenceFlow } from "/snippets/flows.jsx";
+
+A **payin** is a request to collect money from a payer. Create it with `POST /payins`, show the payer what they need to pay, and wait for the final status.
+
+<Info>
+  Prefer a checkout page HelloPay hosts for you? Use [Payment links](/guides/payment-links) instead.
+</Info>
+
+## Choose a payment method
+
+<Columns cols={3}>
+  <Card title="PSE" icon="building-columns" href="/guides/payin-pse" arrow>
+    The payer is redirected to their bank and pays from a savings or checking account.
+  </Card>
+  <Card title="Bre-B" icon="bolt" href="/guides/payin-breb" arrow>
+    Instant payment. You show a one-time key or a QR code.
+  </Card>
+  <Card title="Nequi" icon="mobile-screen" href="/guides/payin-nequi" arrow>
+    The payer approves a request in the Nequi app. No redirect or QR.
+  </Card>
+</Columns>
+
+| | PSE | Bre-B | Nequi |
+| --- | --- | --- | --- |
+| `rail` | `PSE` | `BRE_B` | `NEQUI` |
+| Extra object | `pse: { bank, personType }` | `breb: { keyType }` | None |
+| What you show the payer | Redirect to `sourceData.pseUrl` | `sourceData.keyString` or `sourceData.qrString` | A message to approve in Nequi |
+| Wait for rail data | Yes | Yes | No |
+| Expiry check after | 30 min | 20 min | 15 min |
 
 ## General flow
 
-1. Send a `POST` request to `/payins` with the amount, customer data, selected `rail`, and method-specific details.
-2. HelloPay creates the payin and returns its initial state.
-3. Poll the payin when a rail needs more source data, such as a PSE redirect URL.
-4. The customer completes the payment using the selected payment method.
-5. HelloPay updates the payin status asynchronously and sends webhook events.
-6. Hosted flows return the payer to the `callbackUrl` you provided when applicable.
+<Visibility for="humans">
+  <SequenceFlow
+    title="Payin flow"
+    steps={[
+      { actor: "Your server", title: "Create the payin", detail: "POST /payins", icon: "server" },
+      { actor: "HelloPay", title: "Returns the payin in PENDING", detail: "sourceData may be null", icon: "hourglass-half" },
+      { actor: "Your server", title: "Poll until the rail data is ready", detail: "GET /payins/{id}", icon: "arrows-rotate" },
+      { actor: "Payer", title: "Pays with PSE, Bre-B, or Nequi", icon: "user" },
+      { actor: "HelloPay", title: "Sends the final webhook", detail: "payin.confirmed", icon: "bell" },
+      { actor: "Your server", title: "Fulfills the order", icon: "box" },
+    ]}
+  />
+</Visibility>
 
-## Polling behavior
+1. Send `POST /payins` with the amount, `inlineCustomer`, `rail`, and the method-specific object.
+2. HelloPay returns the payin with `status: "PENDING"`.
+3. For PSE and Bre-B, poll `GET /payins/{id}` until the data you need in `sourceData` is no longer `null`. The payin moves to `PROCESSING` and HelloPay sends `payin.processing`.
+4. The payer completes the payment.
+5. HelloPay sets the final status and sends `payin.confirmed`, `payin.declined`, or `payin.canceled`.
+6. For hosted flows, the payer's browser returns to your `callbackUrl`.
 
-For payin rails such as `PSE` and `BRE_B`, the creation response can omit some source data until HelloPay finishes preparing the flow.
+## Request fields
 
-- In `PSE` payins, `sourceData.pseUrl` is returned as `null` right after creation.
-- In `BRE_B` payins, `sourceData` depends on `breb.keyType`. `SINGLE_USE` returns the generated key, and `QR_CODE` also returns `sourceData.qrString` with the QR image payload.
-- In `NEQUI` payins, `sourceData.phone` contains the payer's mobile number. There is no redirect URL or QR code to wait for.
-- For PSE and BRE-B, poll the payin after creation if the source data you need is not yet available. For Nequi, wait for a final status instead.
-- The method-specific guides include request and response examples for each async flow.
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `amountInCents` | integer | Yes | Amount in cents. `100000` = 1,000 COP |
+| `currency` | string | Yes | `COP` |
+| `rail` | string | Yes | `PSE`, `BRE_B`, or `NEQUI` |
+| `reference` | string | Yes | Your order ID. Echoed in responses and webhooks |
+| `inlineCustomer` | object | Yes | Payer identity. See [the inlineCustomer object](/getting-started/core-concepts#the-inlinecustomer-object) |
+| `pse` | object | When `rail` is `PSE` | `{ bank, personType }`. See [PSE](/guides/payin-pse) |
+| `breb` | object | When `rail` is `BRE_B` | `{ keyType }`. See [Bre-B](/guides/payin-breb) |
+| `callbackUrl` | string | No | Where the payer's browser returns after a hosted flow |
 
-## Common fields
+### Supported document types
 
-These fields are shared across all payin methods:
-
-- `amountInCents`: amount to collect in cents.
-- `currency`: currently `COP`.
-- `rail`: payment method to use: `PSE`, `BRE_B`, or `NEQUI`.
-- `reference`: your internal payment reference.
-- `inlineCustomer`: customer information used during the payment flow.
-- `callbackUrl`: URL where the payer is redirected after completing the payment.
-
-## Supported document types
-
-Use one of the following values in `inlineCustomer.idType`:
+Use one of these values in `inlineCustomer.idType`:
 
 | Value | Description |
 | --- | --- |
-| `PASSPORT` | Passport document. |
-| `CO_CC` | Colombian citizenship ID. |
-| `CO_NIT` | Colombian tax identification number for businesses. |
-| `CO_CE` | Colombian foreigner ID card. |
+| `CO_CC` | Colombian citizenship ID (cédula de ciudadanía) |
+| `CO_CE` | Colombian foreigner ID (cédula de extranjería) |
+| `CO_NIT` | Colombian tax ID for businesses |
+| `PASSPORT` | Passport |
+| `MXN_RFC` | Mexican tax ID |
 
-## Supported payment methods
+## Sample response
 
-- [PSE payin guide](/guides/payin-pse): bank redirect flow using PSE.
-- [BREB payin guide](/guides/payin-breb): collection flow using a BREB key.
-- [Nequi payin guide](/guides/payin-nequi): collect from a payer's Nequi account using their mobile number.
-
-## Sample payin response
-
-The creation response keeps the same base shape regardless of the selected payment method.
+The create response has the same base shape for every rail. Only `sourceData` changes.
 
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
-  "amount": 10000,
+  "amount": 1000,
+  "amountInCents": 100000,
+  "confirmedAmount": null,
+  "confirmedAmountInCents": null,
   "currency": "COP",
-  "status": "PROCESSING",
+  "status": "PENDING",
+  "settlementStatus": null,
   "rail": "PSE",
-  "reference": "1dwDmHerYL5NBQZ",
+  "reference": "INV-2026-001",
+  "paymentLinkId": null,
   "inlineCustomer": {
     "name": "John Doe",
     "idType": "CO_CC",
     "idNumber": "1000000001",
-    "email": "john.doe@doe.com",
-    "phone": "+573131111111"
+    "email": "john.doe@example.com",
+    "phone": "+573001234567"
   },
   "errorCode": null,
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z",
   "resultAt": null,
+  "chargebackAt": null,
   "organizationId": "123e4567-e89b-12d3-a456-426614174000",
   "sourceData": {
-    "paymentMethod": "PSE"
+    "pseUrl": null,
+    "bank": "CO_BANCOLOMBIA"
   },
-  "callbackUrl": "https://portal.hellopay.com.co"
+  "callbackUrl": "https://your-app.com/checkout/return"
 }
 ```
 
-For method-specific payloads and examples, follow the dedicated guides for each payment method.
+## Rail data (`sourceData`)
+
+| Rail | `sourceData` fields | Filled |
+| --- | --- | --- |
+| `PSE` | `pseUrl`, `bank` | `pseUrl` is `null` at creation and filled asynchronously |
+| `BRE_B` | `keyType`, `keyString`, `qrString`, `checkoutUrl` | `checkoutUrl` at creation. `keyString` and `qrString` asynchronously |
+| `NEQUI` | `phone` | At creation |
+
+## Poll for rail data
+
+```typescript
+async function waitFor<T>(payinId: string, pick: (p: any) => T | null, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const res = await fetch(`https://api.stg.hellopay.com.co/payins/${payinId}`, {
+      headers: { "X-API-Key": process.env.HELLOPAY_API_KEY! },
+    });
+    const payin = await res.json();
+    if (["DECLINED", "CANCELED"].includes(payin.status)) throw new Error(payin.errorCode ?? payin.status);
+    const value = pick(payin);
+    if (value) return value;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  throw new Error("Timed out waiting for payin data");
+}
+
+// PSE: const pseUrl = await waitFor(payin.id, (p) => p.sourceData?.pseUrl);
+```
+
+## Next steps
+
+<Columns cols={2}>
+  <Card title="Configure webhooks" icon="bell" href="/getting-started/webhooks">
+    Get the final status without polling.
+  </Card>
+  <Card title="Test in the sandbox" icon="flask" href="/getting-started/sandbox">
+    Simulate confirmed, declined, and canceled payins.
+  </Card>
+</Columns>

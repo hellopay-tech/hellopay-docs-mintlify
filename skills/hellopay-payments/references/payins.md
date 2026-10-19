@@ -1,208 +1,199 @@
 # Payins (collecting payments)
 
 A **payin** collects money from a payer. Create one with `POST /payins`, choose a
-`rail`, and complete the payer-facing flow. Payins are **asynchronous**: the create
-response is the initial state. PSE and BRE-B may populate `sourceData` later;
-Nequi includes the payer's phone immediately. Poll for needed source data and
-confirm the final status through polling or webhooks.
+`rail`, show the payer what they need, and confirm the final status. Payins are
+**asynchronous**: the create response is `PENDING`. PSE and Bre-B fill
+`sourceData` a few seconds later; Nequi includes the payer's phone immediately.
 
 ## Endpoints
 
 | Method & path | Purpose |
 | --- | --- |
 | `POST /payins` | Create a payin |
-| `POST /payins/sync` | Create and initiate a payin synchronously (one request) |
-| `GET /payins` | List payins (cursor pagination: `cursor`, `pageSize` 1–100, default 10) |
-| `GET /payins/{id}` | Fetch a single payin |
+| `GET /payins` | List payins (cursor pagination; filters `reference`, `customerIdNumber`) |
+| `GET /payins/{id}` | Fetch a single payin (use it to poll) |
 
-## Common request fields
+## Request fields
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `amountInCents` | number | Yes | Integer minor units (cents), ≥ 1 |
+| `amountInCents` | integer | Yes | Minor units, ≥ 1. `100000` = 1,000 COP |
 | `currency` | string | Yes | `COP` |
-| `rail` | string | Yes | `PSE`, `BRE_B`, or `NEQUI` |
-| `reference` | string | Yes | Your internal id; echoed in responses & webhooks |
-| `inlineCustomer` | object | Yes | Payer identity (see below) |
-| `pse` | object | When `rail=PSE` | `{ bank, personType }` |
-| `breb` | object | When `rail=BRE_B` | `{ keyType }` |
-| `inlineCustomer.phone` | string | Yes | Colombian mobile in `+573XXXXXXXXX` format; used to request a Nequi payment |
-| `callbackUrl` | string | No | Browser return URL after the flow ends |
+| `rail` | string | Yes | `PSE`, `BRE_B`, or `NEQUI` (must be enabled for the organization) |
+| `reference` | string | Yes | Your order id; echoed in responses and webhooks; not unique |
+| `inlineCustomer` | object | Yes | Payer `{ name, idType, idNumber, email, phone }`, all required |
+| `pse` | object | When `rail=PSE` | `{ bank, personType }`, both required |
+| `breb` | object | When `rail=BRE_B` | `{ keyType: "SINGLE_USE" \| "QR_CODE" }` |
+| `callbackUrl` | string (URL) | No | Browser return URL after a hosted flow |
 
-`inlineCustomer`: `{ name, idType, idNumber, phone, email }`. `idType` ∈
-`CO_CC`, `CO_CE`, `CO_NIT`, `MXN_RFC`, `PASSPORT`.
+`idType` ∈ `CO_CC`, `CO_CE`, `CO_NIT`, `PASSPORT`, `MXN_RFC`. `phone` must match
+`^\+573\d{9}$`. Unknown fields (for example a `nequi` object) return `400`.
 
-## General lifecycle
+## Lifecycle
 
-1. `POST /payins` with amount, customer, `rail`, and a method object when the rail requires one.
-2. HelloPay returns an initial payin state (`PENDING` for `POST /payins`) with rail-specific `sourceData`.
-3. For PSE and BRE-B, **poll** `GET /payins/{id}` if needed source data is not yet populated.
-4. Send the payer to the redirect URL, show the key or QR, or ask them to approve the Nequi request.
-5. The payer completes payment.
-6. HelloPay sends webhooks (`payin.confirmed` / `payin.declined` / `payin.canceled`).
+1. `POST /payins` → `status: "PENDING"`, partial `sourceData`. No webhook yet.
+2. HelloPay starts the rail → `PROCESSING`, webhook `payin.processing`, and
+   `sourceData` is completed.
+3. For PSE and Bre-B, **poll** `GET /payins/{id}` until the data you need is set.
+4. Redirect the payer (PSE), show the key or QR (Bre-B), or ask them to approve in
+   Nequi.
+5. Final status → `payin.confirmed` (then `payin.settled`), `payin.declined`, or
+   `payin.canceled`.
 
-> The create response is **not** the final result. Confirm via webhooks. See
-> [webhooks.md](webhooks.md).
+There is no `EXPIRED` status. After the expiry window (Bre-B 20 min, PSE 30 min,
+Nequi 15 min) HelloPay checks the payin with the rail: confirmed if paid, else
+`DECLINED` (e.g. `BRE_B_PAYIN_EXPIRED`, `PSE_PAYIN_EXPIRED`,
+`NEQUI_PAYIN_EXPIRED`). A PSE payment still in progress at the bank keeps its
+status until the bank answers. If the rail rejects the payin at start, it goes
+`PENDING` → `DECLINED` (e.g. `VENDOR_REJECTED`) with no `payin.processing`.
 
----
-
-## PSE rail (`rail: "PSE"`)
-
-Bank-redirect flow. The payer authenticates on their Colombian bank's site.
-
-**Extra fields:** `pse.bank` (a supported bank code — see [pse-banks.md](pse-banks.md))
-and `pse.personType` ∈ `INDIVIDUAL`, `BUSINESS`.
-
-```bash
-curl --location 'https://api.stg.hellopay.com.co/payins' \
-  --header 'Content-Type: application/json' \
-  --header 'x-api-key: YOUR_API_KEY' \
-  --data-raw '{
-    "amountInCents": 10000,
-    "currency": "COP",
-    "rail": "PSE",
-    "reference": "1001122",
-    "inlineCustomer": {
-      "name": "John Doe", "idType": "CO_CC", "idNumber": "1000000001",
-      "email": "john.doe@doe.com", "phone": "+573131111111"
-    },
-    "pse": { "bank": "CO_BANCOLOMBIA", "personType": "INDIVIDUAL" },
-    "callbackUrl": "https://portal.hellopay.com.co"
-  }'
-```
-
-**Async detail:** right after creation `sourceData.pseUrl` is `null`. Poll
-`GET /payins/{id}` until `pseUrl` is populated, then redirect the payer there.
+## Response shape
 
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
-  "amount": 10000,
+  "amount": 1000,
+  "amountInCents": 100000,
+  "confirmedAmount": null,
+  "confirmedAmountInCents": null,
   "currency": "COP",
-  "status": "PROCESSING",
+  "status": "PENDING",
+  "settlementStatus": null,
   "rail": "PSE",
-  "reference": "1001122",
+  "reference": "INV-2026-001",
+  "paymentLinkId": null,
   "inlineCustomer": { "name": "John Doe", "idType": "CO_CC", "idNumber": "1000000001",
-    "email": "john.doe@doe.com", "phone": "+573131111111" },
+    "email": "john.doe@example.com", "phone": "+573001234567" },
   "errorCode": null,
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z",
   "resultAt": null,
+  "chargebackAt": null,
   "organizationId": "123e4567-e89b-12d3-a456-426614174000",
-  "sourceData": { "pseUrl": null },
-  "callbackUrl": "https://portal.hellopay.com.co"
+  "sourceData": { "pseUrl": null, "bank": "CO_BANCOLOMBIA" },
+  "callbackUrl": "https://your-app.com/checkout/return"
 }
 ```
 
+- `amount` / `confirmedAmount` are pesos; `*InCents` are cents. Confirmed amounts
+  are `null` until confirmed.
+- `settlementStatus`: `null` until confirmed, then `PENDING_SETTLEMENT` → `SETTLED`.
+- `errorCode`: set when declined; usually `null` when canceled. See [errors.md](errors.md).
+- `resultAt`: when the final status was reached.
+
 ---
 
-## BRE-B rail (`rail: "BRE_B"`)
+## PSE (`rail: "PSE"`)
 
-Collect with a BRE-B key. Choose `breb.keyType`:
-
-- `SINGLE_USE` — returns the generated key in `sourceData.keyString`.
-- `QR_CODE` — also returns `sourceData.qrString`, a `data:image/png;base64,...`
-  payload you can render as a QR.
+Bank redirect. `pse.bank` is a bank code from [pse-banks.md](pse-banks.md);
+`pse.personType` ∈ `INDIVIDUAL`, `BUSINESS`.
 
 ```bash
-curl --location 'https://api.stg.hellopay.com.co/payins' \
+curl --request POST 'https://api.stg.hellopay.com.co/payins' \
   --header 'Content-Type: application/json' \
-  --header 'x-api-key: YOUR_API_KEY' \
-  --data-raw '{
-    "amountInCents": 10000,
+  --header 'X-API-Key: YOUR_API_KEY' \
+  --data '{
+    "amountInCents": 100000,
     "currency": "COP",
-    "rail": "BRE_B",
-    "reference": "1dwDmHerYL5NBQZ",
+    "rail": "PSE",
+    "reference": "INV-2026-001",
     "inlineCustomer": {
       "name": "John Doe", "idType": "CO_CC", "idNumber": "1000000001",
-      "email": "john.doe@doe.com", "phone": "+573137772121"
+      "email": "john.doe@example.com", "phone": "+573001234567"
     },
-    "breb": { "keyType": "QR_CODE" },
-    "callbackUrl": "https://portal.hellopay.com.co"
+    "pse": { "bank": "CO_BANCOLOMBIA", "personType": "INDIVIDUAL" },
+    "callbackUrl": "https://your-app.com/checkout/return"
   }'
 ```
 
-Response (`QR_CODE`):
-
-```json
-{
-  "id": "373b1080-62ec-4e65-a4d3-0158f339ca37",
-  "amount": 100,
-  "confirmedAmount": null,
-  "currency": "COP",
-  "status": "PROCESSING",
-  "rail": "BRE_B",
-  "reference": "1dwDmHerYL5NBQZ",
-  "inlineCustomer": { "name": "John Doe", "email": "john.doe@doe.com",
-    "phone": "+573137772121", "idType": "CO_CC", "idNumber": "1000000001" },
-  "errorCode": null,
-  "createdAt": "2026-03-23T22:28:08.724Z",
-  "updatedAt": "2026-03-23T22:28:08.729Z",
-  "resultAt": null,
-  "chargebackAt": null,
-  "organizationId": "db6a6f4f-444a-4221-ac32-695998236e50",
-  "sourceData": {
-    "keyType": "QR_CODE",
-    "qrString": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAns...",
-    "keyString": "@SANDBOX5AF43BE4F5",
-    "checkoutUrl": "https://pay.hellopay.com.co/transaction?payinId=373b1080-...&token=..."
-  },
-  "callbackUrl": "https://portal.hellopay.com.co"
-}
-```
-
-`SINGLE_USE` is identical but omits `qrString`.
+`sourceData` = `{ pseUrl, bank }`. `pseUrl` is `null` at creation. Poll until it
+is set, then redirect the payer there. `personType` is not echoed.
 
 ---
 
-## Nequi rail (`rail: "NEQUI"`)
+## Bre-B (`rail: "BRE_B"`)
 
-Collect from the Nequi account associated with `inlineCustomer.phone`. Send a
-Colombian mobile number in `+573XXXXXXXXX` format. No `nequi` request object is
-needed. The payer approves the request in Nequi; there is no redirect URL or QR.
+Instant payment to a one-time key. `breb.keyType`:
+
+- `SINGLE_USE`: returns `sourceData.keyString`.
+- `QR_CODE`: also returns `sourceData.qrString`, a `data:image/png;base64,...`
+  image usable directly as `<img src>`.
 
 ```bash
-curl --location 'https://api.stg.hellopay.com.co/payins' \
+curl --request POST 'https://api.stg.hellopay.com.co/payins' \
   --header 'Content-Type: application/json' \
-  --header 'x-api-key: YOUR_API_KEY' \
-  --data-raw '{
-    "amountInCents": 10000,
+  --header 'X-API-Key: YOUR_API_KEY' \
+  --data '{
+    "amountInCents": 100000,
+    "currency": "COP",
+    "rail": "BRE_B",
+    "reference": "INV-2026-001",
+    "inlineCustomer": {
+      "name": "John Doe", "idType": "CO_CC", "idNumber": "1000000001",
+      "email": "john.doe@example.com", "phone": "+573001234567"
+    },
+    "breb": { "keyType": "QR_CODE" },
+    "callbackUrl": "https://your-app.com/checkout/return"
+  }'
+```
+
+`sourceData` = `{ keyType, keyString, qrString?, checkoutUrl }`:
+
+- At creation: `keyString: null`, `checkoutUrl` already set (a HelloPay page that
+  shows the key/QR; redirect there if you do not want to render it yourself).
+- After polling (`PROCESSING`):
+
+```json
+{
+  "keyType": "QR_CODE",
+  "keyString": "@SANDBOX5AF43BE4F5",
+  "qrString": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAns...",
+  "checkoutUrl": "https://pay.hellopay.com.co/transaction/.../TOKEN"
+}
+```
+
+`qrString` is cleared once the payin reaches a final status.
+
+Do not confuse with payouts: payin `breb` takes `keyType`; payout `breb` takes
+the receiver's `keyString`.
+
+---
+
+## Nequi (`rail: "NEQUI"`)
+
+Push request to the Nequi account of `inlineCustomer.phone` (`+573XXXXXXXXX`).
+No `nequi` object (it is rejected). No redirect, no QR. `callbackUrl` is unused.
+
+```bash
+curl --request POST 'https://api.stg.hellopay.com.co/payins' \
+  --header 'Content-Type: application/json' \
+  --header 'X-API-Key: YOUR_API_KEY' \
+  --data '{
+    "amountInCents": 100000,
     "currency": "COP",
     "rail": "NEQUI",
     "reference": "INV-2026-001",
     "inlineCustomer": {
       "name": "John Doe", "idType": "CO_CC", "idNumber": "1000000001",
       "email": "john.doe@example.com", "phone": "+573001234567"
-    },
-    "callbackUrl": "https://your-app.com/checkout/return"
+    }
   }'
 ```
 
-The create response contains `sourceData: { "phone": "+573001234567" }`. For
-`POST /payins`, the initial status is `PENDING`; it then moves to `PROCESSING`.
-Wait for a terminal `payin.*` webhook or poll `GET /payins/{id}`. HelloPay checks
-unresolved Nequi payins after 15 minutes and declines those that remain pending.
-See the [Nequi payin guide](/guides/payin-nequi) for a response example.
+`sourceData` = `{ phone }` at creation. Tell the payer to approve in Nequi, then
+wait for the final status. Rejected requests → `DECLINED` with
+`VENDOR_REJECTED`; unapproved after 15 min → `DECLINED` with
+`NEQUI_PAYIN_EXPIRED`.
 
 ---
 
 ## Polling guidance
 
-Rail-specific `sourceData` behavior:
+| Rail | Wait for | Then |
+| --- | --- | --- |
+| PSE | `sourceData.pseUrl` ≠ null | Redirect the payer |
+| Bre-B | `sourceData.keyString` (and `qrString`) ≠ null | Show key/QR or redirect to `checkoutUrl` |
+| Nequi | Nothing | Wait for a final status |
 
-- **PSE** → wait for `sourceData.pseUrl` (initially `null`).
-- **BRE-B** → `SINGLE_USE` returns `keyString`; `QR_CODE` also returns `qrString`.
-- **Nequi** → `sourceData.phone` is available on creation. Poll for the final status, not for a redirect URL.
-
-Poll `GET /payins/{id}` on a short interval until the field you need is non-null or
-`status` is terminal. In the sandbox, PSE and BRE-B source-data updates follow the
-same simulated async behavior as production.
-
-## Response fields worth noting
-
-- `status` — `PROCESSING` → `CONFIRMED` | `DECLINED` | `CANCELED`.
-- `settlementStatus` — settlement lifecycle (e.g. `PENDING_SETTLEMENT`).
-- `confirmedAmount` / `confirmedAmountInCents` — populated once confirmed.
-- `errorCode` — non-null when a transaction fails.
-- `resultAt` — timestamp of the terminal result; `chargebackAt` if charged back.
-- `sourceData` — rail-specific payload (redirect URL, key, QR, or Nequi phone).
+Poll every 1–2 s with a ~60 s timeout. Stop early if `status` becomes `DECLINED`
+or `CANCELED`. The sandbox simulates the same async behavior.

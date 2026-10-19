@@ -1,97 +1,100 @@
 ---
 title: "Sandbox"
-icon: "terminal"
+description: "Test payins, payouts, and payment links without moving real money. The inlineCustomer.idNumber you send decides whether a transaction is confirmed, declined, or canceled."
+icon: "flask"
+keywords: ["sandbox", "staging", "test", "test document numbers", "1000000001", "1000000003", "1000000005", "simulate"]
 ---
 
-## Overview
+import { SequenceFlow } from "/snippets/flows.jsx";
 
-The sandbox environment is the place where you can validate your integration before going live.
+The sandbox lets you validate your whole integration before going live. It uses the same requests and responses as production.
 
-Base URL:
+| | Value |
+| --- | --- |
+| API base URL | `https://api.stg.hellopay.com.co` |
+| Portal | [portal.stg.hellopay.com.co](https://portal.stg.hellopay.com.co) |
+| API key | Create one in the sandbox portal. See [Authentication](/getting-started/authentication) |
 
-```text
-https://api.stg.hellopay.com.co
-```
+No real money moves. The sandbox does not connect to PSE, Bre-B, or Nequi: it simulates their behavior, including the async `sourceData` updates and webhooks.
 
-This environment lets you test the main API endpoints for both payins and payouts using the same request structure as production.
+## Test document numbers
 
-No real money moves in sandbox. HelloPay does not connect directly to real payment methods such as PSE, BRE-B, or Nequi in this environment. Instead, it simulates the expected production behavior so you can validate your integration end-to-end.
+The value of `inlineCustomer.idNumber` decides the final status of a payin or payout:
 
-## Test Document Numbers
+| `inlineCustomer.idNumber` | Final status | Webhook |
+| --- | --- | --- |
+| `1000000001` | `CONFIRMED` | `payin.confirmed` / `payout.confirmed` |
+| `1000000003` | `DECLINED` (`errorCode: SANDBOX_DECLINED`) | `payin.declined` / `payout.declined` |
+| `1000000005` | `CANCELED` | `payin.canceled` / `payout.canceled` |
+| Any other value | `CONFIRMED` | `payin.confirmed` / `payout.confirmed` |
 
-For both payins and payouts, the final transaction outcome is determined by the value sent in `inlineCustomer.idNumber`.
-
-| What you want to test | Document number |
-|-----------------------|-----------------|
-| Successful payin/payout | `1000000001` |
-| Declined payin/payout | `1000000003` |
-| Canceled payin/payout | `1000000005` |
-| Default (also confirmed) | Any other value |
+<Tip>
+  Use `1000000001` when you want a success, rather than a random number. Your tests then read clearly and keep working if the default changes.
+</Tip>
 
 ## Timing
 
-After creating a payin or payout, the transaction status changes in two steps:
+<Visibility for="humans">
+  <SequenceFlow
+    title="Sandbox payin timeline"
+    steps={[
+      { actor: "Your server", title: "POST /payins", detail: "status: PENDING", icon: "server" },
+      { actor: "HelloPay sandbox", title: "Prepares the rail data (pseUrl, keyString, qrString)", detail: "payin.processing", icon: "gears" },
+      { actor: "Your server", title: "Polls GET /payins/{id} for sourceData", icon: "arrows-rotate" },
+      { actor: "HelloPay sandbox", title: "About 5 seconds later, sets the final status from idNumber", detail: "payin.confirmed", icon: "flag-checkered" },
+    ]}
+  />
+</Visibility>
 
-1. Almost immediately, HelloPay sends a webhook with status `PROCESSING`.
-2. Shortly after (~5 seconds), the final status changes according to the value sent in `inlineCustomer.idNumber`.
+1. The create response returns `status: "PENDING"`.
+2. Within a few seconds, HelloPay prepares the rail data and moves the transaction to `PROCESSING`. Payins send `payin.processing`. Payouts do not send a webhook for this step.
+3. About 5 seconds later, the transaction reaches the final status from the table above, and HelloPay sends the matching webhook.
 
-This behavior applies to both payins and payouts.
+## Rail behavior in the sandbox
 
-## Polling behavior
+| Rail | What the sandbox returns |
+| --- | --- |
+| `PSE` | `sourceData.pseUrl` is `null` at creation, then a sandbox redirect URL |
+| `BRE_B` | `sourceData.keyString` such as `@SANDBOX5AF43BE4F5`. `QR_CODE` also returns a fixed test QR in `sourceData.qrString` |
+| `NEQUI` | `sourceData.phone` equals `inlineCustomer.phone`. No real Nequi request is sent |
+| Payouts (`BRE_B`) | `targetData.keyString` echoes the destination key. The key is not checked: the outcome depends only on `idNumber`, and `targetData.bank` is not added. Use `@alphamunKey01` to test `GET /breb/keys/{keyString}` |
 
-For async payin rails such as `PSE` and `BRE_B`, the creation response can omit some source data until HelloPay finishes preparing the flow.
+## Suggested test plan
 
-- In `PSE` payins, `sourceData.pseUrl` is returned as `null` right after creation.
-- In `BRE_B` payins, `sourceData` depends on `breb.keyType`. `SINGLE_USE` returns the generated key, and `QR_CODE` also returns `sourceData.qrString` with the QR image payload.
-- In `NEQUI` payins, `sourceData.phone` contains the payer's mobile number. No redirect URL or QR code is generated.
-- For a Nequi sandbox payin, use `1000000001` to test confirmation and verify that `sourceData.phone` matches the submitted number.
-- Poll the transaction after creation to retrieve the updated `sourceData` values once HelloPay finishes populating them.
-- In sandbox, this update follows the same simulated async behavior as production, so you should handle it with polling or webhooks.
+- [ ] PSE payin with `1000000001`: `pseUrl` appears when you poll, then `payin.confirmed`.
+- [ ] Payin with `1000000003`: `payin.declined` with `errorCode: SANDBOX_DECLINED`.
+- [ ] Payin with `1000000005`: `payin.canceled`.
+- [ ] Bre-B `QR_CODE` payin: `qrString` appears when you poll.
+- [ ] Nequi payin with `1000000001`: `sourceData.phone` matches the request, then `payin.confirmed`.
+- [ ] Bre-B payout with `1000000001`: validate the key with `GET /breb/keys/{keyString}`, then `payout.confirmed`.
+- [ ] Payment link: complete one and receive `paymentlink.completed`; let another expire and receive `paymentlink.expired`.
+- [ ] Your webhook endpoint rejects requests without your authentication header.
 
-## Webhook Events Sequence
-
-The same sequence applies to both payins and payouts:
-
-1. `payin.processing` / `payout.processing` is sent almost immediately after the transaction is created.
-2. `payin.confirmed`, `payin.declined`, or `payin.canceled` is sent next for payins.
-3. `payout.confirmed`, `payout.declined`, or `payout.canceled` is sent next for payouts.
-
-## Sandbox Flow Diagram
+## Sequence diagram
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Client as Client Integration
-    participant API as HelloPay Sandbox API
-    participant WH as Client Webhook Endpoint
+    participant Client as Your server
+    participant API as HelloPay sandbox
+    participant WH as Your webhook endpoint
 
-    Note over Client,API: Base URL: https://api.stg.hellopay.com.co
-    Note over Client,API: Applies to both POST /payins and POST /payouts
+    Client->>API: POST /payins or POST /payouts (inlineCustomer.idNumber)
+    API-->>Client: 201 Created, status PENDING
+    Note over API: Prepares rail data (pseUrl, keyString, qrString)
+    API-->>WH: payin.processing (payins only)
 
-    Client->>API: Create transaction with inlineCustomer.idNumber
-    Note right of API: Sandbox simulates production behavior\nNo real money moves
-
-    Note over Client,API: For PSE and BRE_B payins, initial sourceData may contain null values
-
-    loop Poll async payin until sourceData is updated
+    loop Until sourceData is ready
         Client->>API: GET /payins/{id}
-        API-->>Client: Updated status and sourceData when available
+        API-->>Client: status PROCESSING, sourceData
     end
 
-    API-->>WH: Webhook: processing
-    Note over WH: payin.processing or payout.processing
-
-    alt idNumber = 1000000001
-        API-->>WH: Webhook: confirmed
-        Note over WH: Successful payin/payout
-    else idNumber = 1000000003
-        API-->>WH: Webhook: declined
-        Note over WH: Declined payin/payout
+    Note over API: About 5 seconds later
+    alt idNumber = 1000000003
+        API-->>WH: *.declined
     else idNumber = 1000000005
-        API-->>WH: Webhook: canceled
-        Note over WH: Canceled payin/payout
-    else any other value
-        API-->>WH: Webhook: confirmed
-        Note over WH: Default behavior
+        API-->>WH: *.canceled
+    else 1000000001 or any other value
+        API-->>WH: *.confirmed
     end
 ```

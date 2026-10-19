@@ -1,12 +1,100 @@
 ---
-title: "Intro"
-description: "Welcome to the HelloPay API documentation"
+title: "HelloPay API"
+sidebarTitle: "Overview"
+description: "Collect and send COP payments in Colombia with one REST API: PSE, Bre-B, and Nequi payins, Bre-B payouts, hosted payment links, and webhooks."
 icon: "house"
+keywords: ["hellopay", "payments api", "colombia", "cop", "pse", "bre-b", "nequi", "payins", "payouts", "payment links"]
 ---
 
+import { LifecycleFlow } from "/snippets/flows.jsx";
 
-## HelloPay API Documentation
+HelloPay is a payin and payout platform for Colombia, with more of Latin America coming soon. One REST API lets your business **collect** payments, **send** funds, and **reconcile** every movement through multiple payment rails.
 
-The HelloPay API is designed to facilitate integration with your financial operations with HelloPay in a fast and easy way.
+## Choose your integration
 
-Accelerate your operations with a payin and payout platform initially available for Colombia and, soon, for all Latam. We offer a robust infrastructure with advanced security, high availability and a easy-to-use experience, so your business can move money in a reliable and frictionless way through multiple payment rails.
+<Columns cols={2}>
+  <Card title="Collect with your own UI" icon="hand-holding-dollar" href="/guides/how-to-create-first-payin" arrow>
+    `POST /payins` with PSE, Bre-B, or Nequi. You control the checkout experience.
+  </Card>
+  <Card title="Collect with a hosted page" icon="link" href="/guides/payment-links" arrow>
+    `POST /payment-links` and redirect the payer. HelloPay hosts the checkout.
+  </Card>
+  <Card title="Send funds" icon="paper-plane" href="/guides/how-to-create-first-payout" arrow>
+    `POST /payouts` to a Bre-B key. Validate the key first.
+  </Card>
+  <Card title="Build with an AI agent" icon="robot" href="/getting-started/ai-skill" arrow>
+    Install the HelloPay Agent Skill or connect the docs MCP server.
+  </Card>
+</Columns>
+
+## Quickstart
+
+<Steps>
+  <Step title="Get a sandbox API key" icon="key">
+    Create a key in the [sandbox portal](https://portal.stg.hellopay.com.co/settings/api-keys) and send it in the `X-API-Key` header. See [Authentication](/getting-started/authentication).
+  </Step>
+  <Step title="Configure a webhook" icon="bell">
+    Register your endpoint and its authentication header so you receive final results. See [Webhooks](/getting-started/webhooks).
+  </Step>
+  <Step title="Create your first payin" icon="hand-holding-dollar">
+    ```bash
+    curl --request POST 'https://api.stg.hellopay.com.co/payins' \
+      --header 'X-API-Key: YOUR_SANDBOX_API_KEY' \
+      --header 'Content-Type: application/json' \
+      --data '{
+        "amountInCents": 100000,
+        "currency": "COP",
+        "rail": "NEQUI",
+        "reference": "INV-2026-001",
+        "inlineCustomer": {
+          "name": "John Doe",
+          "idType": "CO_CC",
+          "idNumber": "1000000001",
+          "email": "john.doe@example.com",
+          "phone": "+573001234567"
+        }
+      }'
+    ```
+    The response has `status: "PENDING"`. In the sandbox, `idNumber` `1000000001` makes the payin succeed about 5 seconds later.
+  </Step>
+  <Step title="Confirm the result" icon="circle-check">
+    Wait for the `payin.confirmed` webhook or poll `GET /payins/{id}` until `status` is final. Never treat the create response as the final result.
+  </Step>
+</Steps>
+
+## How money moves
+
+Every transaction is **asynchronous**. The create response is the initial state. The final state arrives later through a webhook or by polling.
+
+<Visibility for="humans">
+  <LifecycleFlow variant="payin" />
+</Visibility>
+
+<Visibility for="agents">
+  Payin lifecycle: `PENDING` (no webhook) → `PROCESSING` (`payin.processing`) → one final status: `CONFIRMED` (`payin.confirmed`, then `payin.settled`), `DECLINED` (`payin.declined`), or `CANCELED` (`payin.canceled`). Payouts follow the same statuses but only send webhooks for final statuses. Payment links go from `PENDING` to `COMPLETED` (`paymentlink.completed`) or `EXPIRED` (`paymentlink.expired`).
+</Visibility>
+
+Read [Core concepts](/getting-started/core-concepts) for amounts, statuses, references, and polling rules shared by every endpoint.
+
+## Environments
+
+| Environment | API base URL | Portal |
+| --- | --- | --- |
+| Sandbox | `https://api.stg.hellopay.com.co` | [portal.stg.hellopay.com.co](https://portal.stg.hellopay.com.co) |
+| Production | `https://api.hellopay.com.co` | [portal.hellopay.com.co](https://portal.hellopay.com.co) |
+
+## Go live
+
+Before you switch from the sandbox to production, check that:
+
+- [ ] You use a **production** API key and base URL, stored on your backend only. If your organization has an IP allowlist, your production IPs are on it.
+- [ ] Your production **webhook** verifies its authentication header, replies `2xx` within 30 seconds, and deduplicates events.
+- [ ] Orders are fulfilled only on a final status (`payin.confirmed` or `paymentlink.completed`), never from the create response or the `callbackUrl` redirect.
+- [ ] Timed-out create requests are looked up by `reference` before any retry.
+- [ ] Every flow you use passed the [sandbox test plan](/getting-started/sandbox#suggested-test-plan).
+
+Then make one small real payin and payout to confirm the setup end to end.
+
+<Tip>
+  Building with Cursor, Claude Code, or another coding agent? Every page is available as Markdown (add `.md` to the URL), the full docs index is at [`/llms.txt`](https://docs.hellopay.com.co/llms.txt), and you can [install the HelloPay skill](/getting-started/ai-skill).
+</Tip>

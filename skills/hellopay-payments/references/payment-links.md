@@ -1,59 +1,57 @@
 # Payment links (hosted checkout)
 
-`POST /payment-links` generates a HelloPay-hosted payment page. Instead of building a
-checkout UI, redirect the payer to the returned `paymentLinkUrl`, where they pick a
-payment method enabled for your account and pay.
+`POST /payment-links` creates a HelloPay-hosted checkout page. Redirect the payer
+to the returned `paymentLinkUrl`; they choose a payment method enabled for the
+account and pay. No checkout UI or rail-specific polling is needed.
 
 ## Endpoints
 
 | Method & path | Purpose |
 | --- | --- |
 | `POST /payment-links` | Create a payment link |
-| `GET /payment-links/{paymentLinkId}` | Fetch a link's current state (e.g. check expiry/completion) |
+| `GET /payment-links/{paymentLinkId}` | Fetch a link's state (`PENDING`, `COMPLETED`, `EXPIRED`) |
 
 ## How it works
 
-1. `POST /payment-links` with the amount, `reference`, `callbackUrl`, and any optional
-   checkout defaults.
-2. HelloPay returns `paymentLinkUrl` — the full hosted-page URL.
-3. Redirect the payer to `paymentLinkUrl`.
-4. The payer picks a method and completes payment on the hosted page.
-5. HelloPay fires `paymentlink.completed` or `paymentlink.expired`.
-6. After the flow, the payer is redirected to your `callbackUrl`.
+1. `POST /payment-links` with `amountType`, `amountInCents`, `reference`,
+   `callbackUrl`, and optional defaults.
+2. HelloPay returns `paymentLinkUrl`. Redirect the payer there right away.
+3. The payer picks a method and pays on the hosted page.
+4. HelloPay sends `paymentlink.completed` (paid) or `paymentlink.expired` (1 hour
+   without payment).
+5. The payer's browser returns to `callbackUrl` either way.
 
 ## Request fields
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `amountType` | string | Yes | Only `FIXED` is supported (charge exactly `amountInCents`) |
-| `amountInCents` | number | Yes | Amount to collect, in cents |
-| `reference` | string | Yes | Your internal reference; returned in webhooks |
-| `callbackUrl` | string | Yes | Browser return URL after the flow ends |
-| `rail` | string | No | `PSE` or `BRE_B`. **Restricts** the link to one rail — the payer can't choose another. Omit to allow all enabled methods |
-| `inlineCustomer` | object | No | Pre-fill customer data on the created payin |
-| `pse` | object | No | PSE defaults; only send when `rail=PSE`. `pse.bank` preselects the bank |
+| `amountType` | string | Yes | `FIXED` only (charge exactly `amountInCents`) |
+| `amountInCents` | integer | Yes | Cents, **minimum 100** |
+| `reference` | string | Yes | Your order id; returned in webhooks; not unique |
+| `callbackUrl` | string (URL) | Yes | Browser return URL after the flow ends |
+| `rail` | string | No | `PSE` or `BRE_B`. **Restricts** the link to that rail. Omit for all enabled methods |
+| `inlineCustomer` | object | No | Pre-fill payer data (all five fields) |
+| `pse` | object | No | Only when `rail=PSE`. `pse.bank` (required inside `pse`) preselects the bank |
+
+`NEQUI` cannot be set as `rail`. Omit `rail` so the payer can choose Nequi when it
+is enabled for the organization. Bre-B link payins always use `QR_CODE`.
 
 ## Choosing the flow
 
-An open link can offer Nequi when enabled for the organization. `NEQUI` cannot be
-used as the `rail` restriction on `POST /payment-links`; omit `rail` so the payer
-can select it in the hosted checkout.
-
 | Flow | Send | When |
 | --- | --- | --- |
-| Open checkout | omit optional fields | Payer chooses method & enters details |
-| Restricted method | `rail` only | Lock to `PSE` or `BRE_B` |
+| Open checkout | No optional fields | Payer chooses method and enters details |
+| Restricted method | `rail` | Lock to `PSE` or `BRE_B` |
 | PSE bank preselected | `rail: "PSE"` + `pse.bank` | You already know the payer's bank |
-| Pre-filled customer | `inlineCustomer` only | Skip asking for details again |
+| Pre-filled payer | `inlineCustomer` | Skip the details form |
 | Restricted + pre-filled | `rail` + `inlineCustomer` | You know payer and method |
 
 ## Sample request
 
 ```bash
-curl --request POST \
-  --url 'https://api.stg.hellopay.com.co/payment-links' \
+curl --request POST 'https://api.stg.hellopay.com.co/payment-links' \
   --header 'Content-Type: application/json' \
-  --header 'x-api-key: YOUR_API_KEY' \
+  --header 'X-API-Key: YOUR_API_KEY' \
   --data '{
     "amountType": "FIXED",
     "reference": "INV-2026-001",
@@ -85,37 +83,40 @@ curl --request POST \
 }
 ```
 
-## Important rules
+`rail` and `inlineCustomer` are `null` when not sent.
 
-- **Links expire after 1 hour** (`expiresAt`). Do not reuse an expired link — create a
-  new one. Use `GET /payment-links/{paymentLinkId}` to check state before reusing.
-- When `rail` is set it **restricts** the link to that rail; the payer cannot pick a
-  different method. Omit `rail` for an open checkout.
-- Only send the `pse` object when `rail` is `PSE`.
+## Rules
 
-## Webhooks — read this carefully
+- **Links expire after 1 hour** (`expiresAt`). Never reuse an expired link; create
+  a new one.
+- `callbackUrl` is UX only, never proof of payment.
 
-Payins created through a payment link do **NOT** fire `payin.*` events. The
-authoritative signal is the payment-link event:
+## Webhooks — read carefully
 
 | Event | `data.status` | Meaning |
 | --- | --- | --- |
-| `paymentlink.completed` | `COMPLETED` | Payer paid successfully |
-| `paymentlink.expired` | `EXPIRED` | 1-hour window elapsed without payment |
+| `paymentlink.completed` | `COMPLETED` | Payer paid |
+| `paymentlink.expired` | `EXPIRED` | 1 hour passed without payment |
 
-Correlate events to your order via `data.reference` (your reference) or
-`data.paymentLinkId` (from the create response).
+The underlying payin also sends `payin.processing`, `payin.confirmed`, and
+`payin.settled` with `data.paymentLinkId` set, but **never** `payin.declined` or
+`payin.canceled`. Use `paymentlink.*` as the only signal for link orders and
+ignore `payin.*` events that carry a `paymentLinkId`, or the order may be
+fulfilled twice.
 
-```javascript
-app.post('/webhook', (req, res) => {
+Correlate events to orders with `data.reference`, not `data.paymentLinkId`: in
+`paymentlink.completed` it is currently a short link code, not the id returned at
+creation. A link can still complete after `paymentlink.expired`; treat a late
+`paymentlink.completed` as paid. `data.amount` is pesos.
+
+```typescript
+app.post("/webhooks/hellopay", express.json(), async (req, res) => {
+  // Verify the configured auth header first (see webhooks.md).
   const { event, data } = req.body;
-  if (event === 'paymentlink.completed' || event === 'paymentlink.expired') {
-    const { reference, paymentLinkId, status } = data;
-    // Look up the order by reference or paymentLinkId, then mark COMPLETED / EXPIRED.
-  }
+  if (event === "paymentlink.completed") await markOrderPaid(data.reference);
+  if (event === "paymentlink.expired") await markOrderExpired(data.reference);
   res.sendStatus(200);
 });
 ```
 
-Full payloads: [webhooks.md](webhooks.md). The `callbackUrl` redirect is client-side
-UX only — always rely on webhooks for authoritative status.
+Full payloads: [webhooks.md](webhooks.md).

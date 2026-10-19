@@ -29,11 +29,16 @@ The site will be available at `http://localhost:3000`.
 
 ## Main files
 
-- `docs.json`: Mintlify configuration, navigation, branding, and API settings
+- `docs.json`: Mintlify configuration, navigation, branding, API settings, and the agent instructions added to every Markdown export
 - `index.mdx`: Documentation landing page
-- `getting-started/`: Authentication, sandbox, and webhook setup
-- `guides/`: Step-by-step integration guides for payins and payouts
-- `openapi.yaml`: OpenAPI spec used for the API reference
+- `getting-started/`: Core concepts, authentication, sandbox, webhooks, errors, and AI agent setup
+- `guides/`: Step-by-step guides for payins (PSE, Bre-B, Nequi), payment links, and payouts. The go-live checklist is a section of `index.mdx`
+- `snippets/`: Reusable content and the animated flow components (`flows.jsx`)
+- `style.css`: Styles for the animated flows (respects `prefers-reduced-motion`)
+- `openapi.yaml`: OpenAPI spec used for the API reference. Endpoints marked `x-excluded` are internal and not published
+- `skills/hellopay-payments/`: The HelloPay Agent Skill. `.mintlify/skills` links to it so the docs site serves it at `/skill.md`; `.mintignore` keeps it out of the page build
+
+When you change API behavior, update the guide, `openapi.yaml`, and the matching file in `skills/hellopay-payments/` together.
 
 ## Publishing
 
@@ -43,6 +48,8 @@ Changes are deployed through Mintlify after they are merged into the default bra
 
 ```bash
 mint dev
+mint validate
+mint broken-links
 mint update
 ```
 

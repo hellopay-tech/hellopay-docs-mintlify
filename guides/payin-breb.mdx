@@ -1,167 +1,178 @@
 ---
-title: 'Create a BREB payin'
-description: 'Use BREB to collect a payin with a BREB key.'
-icon: 'wallet'
+title: "Create a Bre-B payin"
+sidebarTitle: "Bre-B"
+description: "Collect an instant Bre-B payment: create the payin with a SINGLE_USE key or QR_CODE, poll until the key or QR is ready, show it to the payer, and confirm with a webhook."
+icon: "bolt"
+keywords: ["Bre-B", "BRE_B", "breb", "instant payment", "QR code", "qrString", "keyString", "SINGLE_USE", "QR_CODE"]
 ---
 
-Use `rail: "BRE_B"` when you want to collect a payin through the BREB flow.
+import { SequenceFlow } from "/snippets/flows.jsx";
 
-Before implementing this rail:
+Use `rail: "BRE_B"` to collect through Bre-B, Colombia's instant payment system. HelloPay generates a one-time Bre-B key (and optionally a QR code) for the payment. The payer sends the money to that key from any Bre-B-enabled bank or wallet.
 
-- Review [How to create your first payin](/guides/how-to-create-first-payin) for the shared request fields and lifecycle.
-- Configure [webhooks](/getting-started/webhooks) so your system receives the final payin status.
-- Treat `callbackUrl` as the payer return URL only. The definitive payment result is delivered asynchronously.
+Before you start, read the [Payins overview](/guides/how-to-create-first-payin) and [configure webhooks](/getting-started/webhooks).
 
-## Recommended BREB flow
+## How the Bre-B flow works
 
-1. Create the payin with `rail: "BRE_B"` and the desired `breb.keyType`.
-2. HelloPay creates the payin in `PROCESSING`.
-3. For `SINGLE_USE`, HelloPay returns the generated BREB key in `sourceData.keyString`.
-4. For `QR_CODE`, HelloPay also returns `sourceData.qrString` with a base64 image that you can render as a QR.
-5. Poll the payin or wait for webhook events until HelloPay updates the transaction with the BREB-specific data and final status.
-6. Track the final state through webhook events such as `payin.confirmed`, `payin.canceled`, or `payin.declined`.
+<Visibility for="humans">
+  <SequenceFlow
+    title="Bre-B payin"
+    steps={[
+      { actor: "Your server", title: "Create the payin with breb.keyType", detail: "POST /payins", icon: "server" },
+      { actor: "HelloPay", title: "Returns PENDING with keyString: null", icon: "hourglass-half" },
+      { actor: "Your server", title: "Polls until keyString (and qrString) are set", detail: "GET /payins/{id}", icon: "arrows-rotate" },
+      { actor: "Payer", title: "Pays the key or scans the QR in their bank app", icon: "qrcode" },
+      { actor: "HelloPay", title: "Sends the final webhook", detail: "payin.confirmed", icon: "bell" },
+    ]}
+  />
+</Visibility>
 
-## Request examples
+1. Create the payin with `rail: "BRE_B"` and `breb.keyType`.
+2. HelloPay returns the payin with `status: "PENDING"`. `sourceData.keyString` is `null`, and `sourceData.checkoutUrl` is already set.
+3. Poll `GET /payins/{id}` until `sourceData.keyString` is set (and `sourceData.qrString` for `QR_CODE`). The payin is now `PROCESSING`.
+4. Show the key or QR to the payer, or redirect them to `sourceData.checkoutUrl`, a HelloPay page that shows it for you.
+5. HelloPay sends `payin.confirmed`, `payin.declined`, or `payin.canceled`.
+
+<Warning>
+  After 20 minutes, HelloPay checks the payin with the Bre-B network. If the payer never paid, it becomes `DECLINED` (for example `errorCode: BRE_B_PAYIN_EXPIRED`). After the payin reaches a final status, `qrString` is cleared.
+</Warning>
+
+## Choose a key type
+
+| `breb.keyType` | Returns | Use it when |
+| --- | --- | --- |
+| `SINGLE_USE` | `sourceData.keyString` | The payer types the key into their bank app |
+| `QR_CODE` | `sourceData.keyString` and `sourceData.qrString` | You can show a QR the payer scans |
+
+## Request
 
 <Tabs>
-  <Tab title="SINGLE_USE" icon="key">
-    Use `breb.keyType: "SINGLE_USE"` when you want HelloPay to return only the generated BREB key.
-
+  <Tab title="QR_CODE" icon="qrcode">
     ```bash
-    curl --location 'https://api.stg.hellopay.com.co/payins' \
-    --header 'Content-Type: application/json' \
-    --header 'x-api-key: ••••••' \
-    --data-raw '{
-      "amountInCents": 10000,
-      "currency": "COP",
-      "rail": "BRE_B",
-      "reference": "1dwDmHerYL5NBQZ",
-      "inlineCustomer": {
-        "name": "John Doe",
-        "idType": "CO_CC",
-        "idNumber": "1000000001",
-        "email": "john.doe@doe.com",
-        "phone": "+573137772121"
-      },
-      "breb": {
-        "keyType": "SINGLE_USE"
-      },
-      "callbackUrl": "https://portal.hellopay.com.co"
-    }'
+    curl --request POST 'https://api.stg.hellopay.com.co/payins' \
+      --header 'X-API-Key: YOUR_API_KEY' \
+      --header 'Content-Type: application/json' \
+      --data '{
+        "amountInCents": 100000,
+        "currency": "COP",
+        "rail": "BRE_B",
+        "reference": "INV-2026-001",
+        "inlineCustomer": {
+          "name": "John Doe",
+          "idType": "CO_CC",
+          "idNumber": "1000000001",
+          "email": "john.doe@example.com",
+          "phone": "+573001234567"
+        },
+        "breb": { "keyType": "QR_CODE" },
+        "callbackUrl": "https://your-app.com/checkout/return"
+      }'
     ```
   </Tab>
-  <Tab title="QR_CODE" icon="qrcode">
-    Use `breb.keyType: "QR_CODE"` when you want HelloPay to also return a QR image in the payin response.
-
+  <Tab title="SINGLE_USE" icon="key">
     ```bash
-    curl --location 'https://api.stg.hellopay.com.co/payins' \
-    --header 'Content-Type: application/json' \
-    --header 'x-api-key: ••••••' \
-    --data-raw '{
-      "amountInCents": 10000,
-      "currency": "COP",
-      "rail": "BRE_B",
-      "reference": "1dwDmHerYL5NBQZ",
-      "inlineCustomer": {
-        "name": "John Doe",
-        "idType": "CO_CC",
-        "idNumber": "1000000001",
-        "email": "john.doe@doe.com",
-        "phone": "+573137772121"
-      },
-      "breb": {
-        "keyType": "QR_CODE"
-      },
-      "callbackUrl": "https://portal.hellopay.com.co"
-    }'
+    curl --request POST 'https://api.stg.hellopay.com.co/payins' \
+      --header 'X-API-Key: YOUR_API_KEY' \
+      --header 'Content-Type: application/json' \
+      --data '{
+        "amountInCents": 100000,
+        "currency": "COP",
+        "rail": "BRE_B",
+        "reference": "INV-2026-001",
+        "inlineCustomer": {
+          "name": "John Doe",
+          "idType": "CO_CC",
+          "idNumber": "1000000001",
+          "email": "john.doe@example.com",
+          "phone": "+573001234567"
+        },
+        "breb": { "keyType": "SINGLE_USE" },
+        "callbackUrl": "https://your-app.com/checkout/return"
+      }'
     ```
   </Tab>
 </Tabs>
 
-## Request fields
+### Bre-B fields
 
-- `amountInCents`: amount to collect, expressed in cents.
-- `currency`: currently `COP`.
-- `rail`: must be `BRE_B`.
-- `reference`: your internal identifier for this payin.
-- `inlineCustomer`: customer information used during the payment flow. Supported document types are listed in [How to create your first payin](/guides/how-to-create-first-payin).
-- `breb.keyType`: BREB key mode to generate. Use `SINGLE_USE` for a key-only flow or `QR_CODE` to also receive `sourceData.qrString`.
-- `callbackUrl`: URL where the payer is redirected after the payment flow is completed.
+| Field | Required | Description |
+| --- | --- | --- |
+| `breb.keyType` | Yes | `SINGLE_USE` or `QR_CODE` |
+| `callbackUrl` | No | Where the payer returns from `sourceData.checkoutUrl` |
 
-## Response examples
+The shared fields are described in the [Payins overview](/guides/how-to-create-first-payin#request-fields).
+
+<Note>
+  For payins, `breb` takes `keyType`. For [payouts](/guides/how-to-create-first-payout), `breb` takes the receiver's `keyString`. Do not mix them.
+</Note>
+
+## Response
 
 <Tabs>
-  <Tab title="SINGLE_USE" icon="key">
+  <Tab title="Create response" icon="hourglass-half">
     ```json
     {
       "id": "373b1080-62ec-4e65-a4d3-0158f339ca37",
-      "amount": 100,
-      "confirmedAmount": null,
+      "amount": 1000,
+      "amountInCents": 100000,
       "currency": "COP",
+      "status": "PENDING",
+      "rail": "BRE_B",
+      "reference": "INV-2026-001",
+      "errorCode": null,
+      "sourceData": {
+        "keyType": "QR_CODE",
+        "keyString": null,
+        "checkoutUrl": "https://pay.hellopay.com.co/transaction/373b1080-62ec-4e65-a4d3-0158f339ca37/TOKEN"
+      },
+      "callbackUrl": "https://your-app.com/checkout/return"
+    }
+    ```
+  </Tab>
+  <Tab title="After polling (QR_CODE)" icon="qrcode">
+    ```json
+    {
+      "id": "373b1080-62ec-4e65-a4d3-0158f339ca37",
       "status": "PROCESSING",
       "rail": "BRE_B",
-      "reference": "1dwDmHerYL5NBQZ",
-      "inlineCustomer": {
-        "name": "John Doe",
-        "email": "john.doe@doe.com",
-        "phone": "+573137772121",
-        "idType": "CO_CC",
-        "idNumber": "1000000001"
-      },
-      "errorCode": null,
-      "createdAt": "2026-03-23T22:28:08.724Z",
-      "updatedAt": "2026-03-23T22:28:08.729Z",
-      "resultAt": null,
-      "chargebackAt": null,
-      "organizationId": "db6a6f4f-444a-4221-ac32-695998236e50",
+      "sourceData": {
+        "keyType": "QR_CODE",
+        "keyString": "@SANDBOX5AF43BE4F5",
+        "qrString": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAnsAAAJ7AQMAAACh+...",
+        "checkoutUrl": "https://pay.hellopay.com.co/transaction/373b1080-62ec-4e65-a4d3-0158f339ca37/TOKEN"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="After polling (SINGLE_USE)" icon="key">
+    ```json
+    {
+      "id": "373b1080-62ec-4e65-a4d3-0158f339ca37",
+      "status": "PROCESSING",
+      "rail": "BRE_B",
       "sourceData": {
         "keyType": "SINGLE_USE",
         "keyString": "@SANDBOX5AF43BE4F5",
-        "checkoutUrl": "http://localhost:5151/transaction?payinId=373b1080-62ec-4e65-a4d3-0158f339ca37&token=UDJLMFNGSVpLQklpwcH8bjlGnUUDCItxUD0v8loz3w"
-      },
-      "callbackUrl": "https://portal.hellopay.com.co"
-    }
-    ```
-  </Tab>
-  <Tab title="QR_CODE" icon="qrcode">
-    ```json
-    {
-      "id": "373b1080-62ec-4e65-a4d3-0158f339ca37",
-      "amount": 100,
-      "confirmedAmount": null,
-      "currency": "COP",
-      "status": "PROCESSING",
-      "rail": "BRE_B",
-      "reference": "1dwDmHerYL5NBQZ",
-      "inlineCustomer": {
-        "name": "John Doe",
-        "email": "john.doe@doe.com",
-        "phone": "+573137772121",
-        "idType": "CO_CC",
-        "idNumber": "1000000001"
-      },
-      "errorCode": null,
-      "createdAt": "2026-03-23T22:28:08.724Z",
-      "updatedAt": "2026-03-23T22:28:08.729Z",
-      "resultAt": null,
-      "chargebackAt": null,
-      "organizationId": "db6a6f4f-444a-4221-ac32-695998236e50",
-      "sourceData": {
-        "keyType": "QR_CODE",
-        "qrString": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAnsAAAJ7AQMAAACh+...",
-        "keyString": "@SANDBOX5AF43BE4F5",
-        "checkoutUrl": "http://localhost:5151/transaction?payinId=373b1080-62ec-4e65-a4d3-0158f339ca37&token=UDJLMFNGSVpLQklpwcH8bjlGnUUDCItxUD0v8loz3w"
-      },
-      "callbackUrl": "https://portal.hellopay.com.co"
+        "checkoutUrl": "https://pay.hellopay.com.co/transaction/373b1080-62ec-4e65-a4d3-0158f339ca37/TOKEN"
+      }
     }
     ```
   </Tab>
 </Tabs>
 
-## What the response means
+Responses are shortened here. See the [Payins overview](/guides/how-to-create-first-payin#sample-response) for every field.
 
-- `status: "PROCESSING"` means the payin was created successfully and is waiting for the BREB flow to complete.
-- `sourceData.keyType` tells you which BREB key mode was used for the transaction.
-- `sourceData.keyString` is available in both variants so you can identify the generated BREB key.
-- `sourceData.qrString` is returned only for `QR_CODE` payins and contains a `data:image/png;base64,...` payload ready to render.
-- The creation response is not the final outcome. Rely on webhooks to learn whether the payin was confirmed, canceled, or declined.
+| Field | Description |
+| --- | --- |
+| `sourceData.keyType` | The key type you requested |
+| `sourceData.keyString` | The key the payer sends money to. `null` until ready |
+| `sourceData.qrString` | `QR_CODE` only. A `data:image/png;base64,...` image you can use directly as an `<img src>` |
+| `sourceData.checkoutUrl` | HelloPay page that shows the key or QR to the payer |
+
+## Render the QR
+
+`qrString` is already an image, so you do not need a QR library:
+
+```html
+<img src="data:image/png;base64,iVBORw0KGgo..." alt="Scan with your bank app to pay" width="240" height="240" />
+```

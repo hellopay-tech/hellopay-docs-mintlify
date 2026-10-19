@@ -1,0 +1,4 @@
+# Agent Skill sources are published through .mintlify/skills (a symlink to skills/).
+# Keep them out of the regular page build so they do not become unlisted doc pages.
+skills/
+LICENSE

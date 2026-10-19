@@ -1,0 +1,122 @@
+---
+title: "Core concepts"
+description: "Rules shared by every HelloPay endpoint: amounts in cents, the async status lifecycle, rails, references, polling, and the inlineCustomer object."
+icon: "shapes"
+keywords: ["amountInCents", "status", "lifecycle", "async", "polling", "reference", "idempotency", "inlineCustomer", "rail"]
+---
+
+import { LifecycleFlow } from "/snippets/flows.jsx";
+
+These rules apply to payins, payouts, and payment links. Read them once before you build any flow.
+
+## Amounts
+
+Send amounts in **cents** with `amountInCents` (an integer). Responses return both values:
+
+| Field | Unit | Example for 1,000 COP |
+| --- | --- | --- |
+| `amountInCents` | Cents (what you send) | `100000` |
+| `amount` | Pesos (`amountInCents / 100`) | `1000` |
+
+Webhook payloads only include `amount`, in pesos. `currency` is always `COP`.
+
+## Transactions are asynchronous
+
+The response to `POST /payins` or `POST /payouts` is the **initial** state, never the final result. Get the final result in one of two ways:
+
+- **Webhooks (recommended):** HelloPay sends an event for each status change. See [Webhooks](/getting-started/webhooks).
+- **Polling:** call `GET /payins/{id}` or `GET /payouts/{id}` until `status` is final.
+
+### Status lifecycle
+
+<Visibility for="humans">
+  <Tabs>
+    <Tab title="Payins" icon="hand-holding-dollar">
+      <LifecycleFlow variant="payin" />
+    </Tab>
+    <Tab title="Payouts" icon="paper-plane">
+      <LifecycleFlow variant="payout" />
+    </Tab>
+    <Tab title="Payment links" icon="link">
+      <LifecycleFlow variant="paymentlink" />
+    </Tab>
+  </Tabs>
+</Visibility>
+
+| Status | Final | Payin webhook | Payout webhook |
+| --- | --- | --- | --- |
+| `PENDING` | No | None | None |
+| `PROCESSING` | No | `payin.processing` | None |
+| `CONFIRMED` | Yes | `payin.confirmed`, then `payin.settled` | `payout.confirmed` |
+| `DECLINED` | Yes | `payin.declined` | `payout.declined` |
+| `CANCELED` | Yes | `payin.canceled` | `payout.canceled` |
+
+Payment links have their own statuses: `PENDING`, then `COMPLETED` or `EXPIRED`.
+
+<Note>
+  Payins have no `EXPIRED` status. After the expiry window (Bre-B 20 minutes, PSE 30 minutes, Nequi 15 minutes), HelloPay checks the payin with the payment rail: it is confirmed if the payer paid, or `DECLINED` with an `errorCode` such as `NEQUI_PAYIN_EXPIRED` if not. Some PSE payments can still be in progress at the bank after 30 minutes, so always wait for the final status.
+
+  A payin or payout can also go straight from `PENDING` to `DECLINED` when the rail rejects it at the start (for example an unknown Bre-B key). In that case there is no `processing` webhook.
+</Note>
+
+## Rails
+
+`rail` selects the payment method.
+
+| Rail | Payins | Payouts | Method-specific object |
+| --- | --- | --- | --- |
+| `PSE` | Yes | No | `pse: { bank, personType }` |
+| `BRE_B` | Yes | Yes | Payin: `breb: { keyType }`. Payout: `breb: { keyString }` |
+| `NEQUI` | Yes | Contact support | None for payins (uses `inlineCustomer.phone`) |
+
+In prose these docs write **Bre-B**. In the API the value is always `BRE_B`.
+
+## Rail data arrives later: `sourceData`
+
+Payins return rail-specific data in `sourceData`. Some fields are `null` in the create response and are filled a few seconds later:
+
+| Rail | Field you need | In the create response | What to do |
+| --- | --- | --- | --- |
+| `PSE` | `sourceData.pseUrl` | `null` | Poll until it is set, then redirect the payer |
+| `BRE_B` | `sourceData.keyString` (and `qrString` for `QR_CODE`) | `null` | Poll until it is set, then show the key or QR |
+| `NEQUI` | `sourceData.phone` | Set | Nothing to wait for. Ask the payer to approve in Nequi |
+
+Poll every 1–2 seconds and stop after about 60 seconds. Payouts return the destination in `targetData` instead.
+
+## The `inlineCustomer` object
+
+Every payin and payout needs `inlineCustomer`. It is the **payer** for payins and the **receiver** for payouts. All fields are required.
+
+| Field | Format |
+| --- | --- |
+| `name` | Full name |
+| `idType` | `CO_CC` (citizenship ID), `CO_CE` (foreigner ID), `CO_NIT` (business tax ID), `PASSPORT`, or `MXN_RFC` |
+| `idNumber` | Document number, as a string. In the sandbox it decides the outcome |
+| `email` | Valid email |
+| `phone` | Colombian mobile in `+573XXXXXXXXX` format |
+
+## References and retries
+
+`reference` is your own identifier. HelloPay echoes it in responses and webhooks, so use it to match events to your orders.
+
+<Warning>
+  HelloPay does **not** enforce unique references and has no idempotency-key header. If a create request times out, do not retry it blindly. First search with `GET /payins?reference=...` or `GET /payouts?reference=...`, and only create the transaction again if nothing was found.
+</Warning>
+
+## `callbackUrl` is not proof of payment
+
+`callbackUrl` is where the payer's browser returns after a hosted flow (PSE, Bre-B checkout, payment links). A redirect can happen whether or not the payment succeeded. Always confirm with a webhook or polling.
+
+## Pagination
+
+`GET /payins`, `GET /payouts`, and `GET /ledger/entries` use cursor pagination:
+
+- Query parameters: `cursor` (opaque) and `pageSize` (1–100, default 10).
+- The response includes `pageInfo: { hasNext, hasPrevious, nextCursor, previousCursor }`.
+- Pass `nextCursor` as `cursor` until `hasNext` is `false`.
+
+`GET /payins` and `GET /payouts` also accept `reference` and `customerIdNumber` filters.
+
+## Timestamps
+
+All timestamps are ISO 8601 strings in UTC, for example `2026-01-01T00:00:00.000Z`.
