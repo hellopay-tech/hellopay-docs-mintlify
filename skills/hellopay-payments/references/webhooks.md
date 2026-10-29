@@ -7,7 +7,7 @@ status change.
 ## Setup
 
 1. Portal → **Settings → Webhooks** (sandbox:
-   `https://portal.stg.hellopay.com.co/settings/webhooks`).
+   `https://portal.stg.hellopay.com.co/dashboard/settings/web-hook`).
 2. Enter the endpoint URL plus a custom **authentication header** name and value
    (for example `X-Webhook-Secret: <random>`). HelloPay sends that header on every
    request. Requests are **not signed**: checking this header is the only
